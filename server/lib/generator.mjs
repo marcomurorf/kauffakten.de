@@ -45,8 +45,10 @@ Antworte NUR mit dem JSON-Objekt in exakt diesem Schema:
 
 /** Erzeugt einen Kategorie-Entwurf per LLM und speichert ihn in data/drafts/.
  *  Ablauf: erst echte Amazon-Suchtreffer holen (ASIN, Titel, Bild, Preis),
- *  dann schreibt das LLM die Kategorie NUR aus diesen Kandidaten. */
-export async function generateDraft(term) {
+ *  dann schreibt das LLM die Kategorie NUR aus diesen Kandidaten.
+ *  opts.slug: erzwingt einen bestimmten Slug (z. B. beim Regenerieren einer
+ *  Live-Kategorie, damit die URL stabil bleibt). */
+export async function generateDraft(term, opts = {}) {
   const today = new Date().toISOString().slice(0, 10);
 
   // 1) Echte Produkte von Amazon (Quelle der Wahrheit für ASINs).
@@ -76,6 +78,7 @@ export async function generateDraft(term) {
   );
 
   const draft = JSON.parse(raw);
+  if (opts.slug) draft.slug = opts.slug; // URL-Stabilität beim Regenerieren
   validateDraft(draft);
   draft.updatedAt = today;
 

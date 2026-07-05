@@ -10,5 +10,15 @@ Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
 
+# Härtung: Prozess einsperren (lauscht nur auf 127.0.0.1, braucht nur /opt/bookandbuy)
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/bookandbuy
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
 [Install]
 WantedBy=multi-user.target

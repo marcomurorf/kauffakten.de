@@ -1,0 +1,291 @@
+{
+  "slug": "maehroboter-kleiner-garten",
+  "name": "Mähroboter für kleine Gärten",
+  "shortName": "Mähroboter klein",
+  "searchTerms": [
+    "mähroboter kleiner garten",
+    "mähroboter bis 300 qm",
+    "rasenroboter kleine fläche",
+    "mähroboter ohne begrenzungskabel klein"
+  ],
+  "updatedAt": "2026-07-05",
+  "intro": "Mähroboter für kleine Gärten decken Rasenflächen von etwa 80 bis 500 m² ab. Die meisten aktuellen Modelle arbeiten ohne Begrenzungskabel und orientieren sich per Kameranavigation; klassische Kabel-Modelle wie der Gardena SILENO minimo bleiben eine bewährte Alternative. Verglichen werden sechs Geräte zwischen rund 290 und 710 Euro, geprüft am 05.07.2026.",
+  "keySpecs": [
+    {
+      "key": "flaeche",
+      "label": "Empfohlene Rasenfläche",
+      "unit": "m²"
+    },
+    {
+      "key": "schnittbreite",
+      "label": "Schnittbreite",
+      "unit": "cm"
+    },
+    {
+      "key": "schnitthoehe",
+      "label": "Schnitthöhe",
+      "unit": "mm"
+    },
+    {
+      "key": "steigung",
+      "label": "Max. Steigung",
+      "unit": "%"
+    },
+    {
+      "key": "navigation",
+      "label": "Navigation",
+      "unit": ""
+    }
+  ],
+  "products": [
+    {
+      "id": "lawnmaster-ocumow-80",
+      "name": "OcuMow Mähroboter 80 m²",
+      "brand": "Lawnmaster",
+      "asin": "B0FR46XBYX",
+      "price": {
+        "value": 292,
+        "currency": "EUR",
+        "checkedAt": "2026-07-05"
+      },
+      "specs": {
+        "flaeche": 80,
+        "schnittbreite": 18,
+        "schnitthoehe": "20-60",
+        "steigung": 35,
+        "navigation": "Kamera, ohne Begrenzungskabel"
+      },
+      "pros": [
+        "Günstigster Einstieg ohne Begrenzungskabel",
+        "Sehr kompakt und geräuscharm",
+        "Keine Installation nötig"
+      ],
+      "cons": [
+        "Nur für sehr kleine Flächen bis 80 m²",
+        "Kleiner 2-Ah-Akku, kürzere Laufzeit",
+        "Zufallsnavigation statt systematischer Bahnen"
+      ],
+      "verdict": "Solides Einsteigermodell für Mini-Rasenflächen, bei denen Preis und einfache Inbetriebnahme wichtiger sind als Mähmuster-Präzision.",
+      "bestFor": "beste Wahl für sehr kleine Rasenflächen unter 100 m² mit knappem Budget",
+      "image": "https://images-eu.ssl-images-amazon.com/images/P/B0FR46XBYX.03._SL500_.jpg",
+      "asinStatus": "ok",
+      "asinCheckedAt": "2026-07-05"
+    },
+    {
+      "id": "yardcare-v100",
+      "name": "V100 Mähroboter",
+      "brand": "Yardcare",
+      "asin": "B0FX2BBFN1",
+      "price": {
+        "value": 312,
+        "currency": "EUR",
+        "checkedAt": "2026-07-05"
+      },
+      "specs": {
+        "flaeche": 150,
+        "schnittbreite": 18,
+        "schnitthoehe": "20-60",
+        "steigung": 30,
+        "navigation": "Kamera, ohne Begrenzungskabel"
+      },
+      "pros": [
+        "Hinderniserkennung für 150 Objektklassen",
+        "4-Ah-Akku mit ordentlicher Laufzeit",
+        "Ersatzklingen und Magnetband im Lieferumfang"
+      ],
+      "cons": [
+        "Wenig bekannte Marke, unklare Ersatzteilversorgung",
+        "App-Funktionen einfacher als bei Premium-Herstellern"
+      ],
+      "verdict": "Preiswertes Kamera-Modell mit gutem Lieferumfang, das für einfache Gärten bis 150 m² ausreicht.",
+      "bestFor": "beste Wahl für 100-150 m² mit vielen Hindernissen bei kleinem Budget",
+      "image": "https://images-eu.ssl-images-amazon.com/images/P/B0FX2BBFN1.03._SL500_.jpg",
+      "asinStatus": "ok",
+      "asinCheckedAt": "2026-07-05"
+    },
+    {
+      "id": "bosch-visimow-18v-100",
+      "name": "VISIMOW 18V-100",
+      "brand": "Bosch",
+      "asin": "B0G4DVCN8K",
+      "price": {
+        "value": 324,
+        "currency": "EUR",
+        "checkedAt": "2026-07-05"
+      },
+      "specs": {
+        "flaeche": 100,
+        "schnittbreite": 16,
+        "schnitthoehe": "20-60",
+        "steigung": 30,
+        "navigation": "Kamera, ohne Begrenzungskabel"
+      },
+      "pros": [
+        "Etablierte Marke mit gutem Service- und Ersatzteilnetz",
+        "Kompatibel mit Bosch 18V-Akkusystem",
+        "Kabellose Einrichtung"
+      ],
+      "cons": [
+        "Akku nicht im Lieferumfang enthalten",
+        "Schmale Schnittbreite von 16 cm",
+        "Nur für Flächen bis 100 m²"
+      ],
+      "verdict": "Markengerät mit Akkusystem-Vorteil für Bosch-Nutzer, allerdings ohne Akku geliefert und auf 100 m² begrenzt.",
+      "bestFor": "beste Wahl für Besitzer von Bosch-18V-Akkus mit kleinem Rasen",
+      "image": "https://images-eu.ssl-images-amazon.com/images/P/B0G4DVCN8K.03._SL500_.jpg",
+      "asinStatus": "ok",
+      "asinCheckedAt": "2026-07-05"
+    },
+    {
+      "id": "mova-viax-250",
+      "name": "ViAX 250",
+      "brand": "MOVA",
+      "asin": "B0G5B2W2MD",
+      "price": {
+        "value": 483,
+        "currency": "EUR",
+        "checkedAt": "2026-07-05"
+      },
+      "specs": {
+        "flaeche": 250,
+        "schnittbreite": 18,
+        "schnitthoehe": "20-60",
+        "steigung": 40,
+        "navigation": "Dual-Kamera, ohne Begrenzungskabel"
+      },
+      "pros": [
+        "Systematische U-förmige Mähbahnen",
+        "Guter Kantenschnitt",
+        "Dual-Vision-Hindernisvermeidung, geeignet für komplexe Gelände"
+      ],
+      "cons": [
+        "Junge Marke am deutschen Markt",
+        "Kamerabasierte Navigation braucht ausreichend Licht"
+      ],
+      "verdict": "Starkes Mittelklasse-Modell mit systematischem Mähen und gutem Kantenschnitt für verwinkelte Gärten bis 250 m².",
+      "bestFor": "beste Wahl für komplexe, verwinkelte Gärten bis 250 m²",
+      "image": "https://images-eu.ssl-images-amazon.com/images/P/B0G5B2W2MD.03._SL500_.jpg",
+      "asinStatus": "ok",
+      "asinCheckedAt": "2026-07-05"
+    },
+    {
+      "id": "gardena-sileno-minimo-350",
+      "name": "SILENO minimo 350",
+      "brand": "Gardena",
+      "asin": "B0CNPXSNBN",
+      "price": {
+        "value": 549,
+        "currency": "EUR",
+        "checkedAt": "2026-07-05"
+      },
+      "specs": {
+        "flaeche": 350,
+        "schnittbreite": 16,
+        "schnitthoehe": "20-45",
+        "steigung": 35,
+        "navigation": "Begrenzungskabel"
+      },
+      "pros": [
+        "Sehr zuverlässig und ausgereift, funktioniert bei jedem Wetter",
+        "Sehr leise",
+        "Bluetooth-App-Steuerung"
+      ],
+      "cons": [
+        "Begrenzungskabel muss verlegt werden",
+        "Geringe maximale Schnitthöhe von 45 mm",
+        "Zufallsprinzip statt Bahnen-Mähen"
+      ],
+      "verdict": "Der bewährte Klassiker mit Begrenzungskabel: weniger modern, dafür maximal zuverlässig und unabhängig von Lichtverhältnissen.",
+      "bestFor": "beste Wahl für alle, die maximale Zuverlässigkeit einer Kamera-Navigation vorziehen",
+      "image": "https://images-eu.ssl-images-amazon.com/images/P/B0CNPXSNBN.03._SL500_.jpg",
+      "asinStatus": "ok",
+      "asinCheckedAt": "2026-07-05"
+    },
+    {
+      "id": "mammotion-yuka-mini-2-500",
+      "name": "YUKA mini 2 500",
+      "brand": "Mammotion",
+      "asin": "B0GCCLW2PL",
+      "price": {
+        "value": 704,
+        "currency": "EUR",
+        "checkedAt": "2026-07-05"
+      },
+      "specs": {
+        "flaeche": 500,
+        "schnittbreite": 20,
+        "schnitthoehe": "20-60",
+        "steigung": 45,
+        "navigation": "KI-Kamera (TrueVision), ohne Begrenzungskabel"
+      },
+      "pros": [
+        "Automatische Mehrzonen-Kartierung ohne RTK-Antenne",
+        "Bewältigt 45 % Steigung dank Heckantrieb",
+        "Großer 4,5-Ah-Akku für bis zu 500 m²"
+      ],
+      "cons": [
+        "Höchster Preis im Vergleich",
+        "Für sehr kleine Gärten überdimensioniert"
+      ],
+      "verdict": "Das leistungsstärkste Modell im Vergleich, sinnvoll für Gärten am oberen Ende des Kleinbereichs mit Hanglagen und mehreren Zonen.",
+      "bestFor": "beste Wahl für 300-500 m² mit Steigungen und mehreren Rasenzonen",
+      "image": "https://images-eu.ssl-images-amazon.com/images/P/B0GCCLW2PL.03._SL500_.jpg",
+      "asinStatus": "ok",
+      "asinCheckedAt": "2026-07-05"
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Welcher Mähroboter ist der beste für einen kleinen Garten?",
+      "a": "Für die meisten kleinen Gärten bis 250 m² ist der MOVA ViAX 250 für 483 Euro die beste Wahl, da er ohne Begrenzungskabel in systematischen Bahnen mäht und einen guten Kantenschnitt liefert. Für sehr kleine Flächen bis 150 m² reicht der Yardcare V100 für 312 Euro. Stand: 05.07.2026."
+    },
+    {
+      "q": "Was kostet ein guter Mähroboter für einen kleinen Garten?",
+      "a": "Ein brauchbarer Mähroboter für kleine Gärten kostet zwischen 292 Euro (Lawnmaster OcuMow 80) und rund 704 Euro (Mammotion YUKA mini 2 500). Gute Mittelklasse-Modelle ohne Begrenzungskabel liegen bei etwa 300 bis 500 Euro. Stand: 05.07.2026."
+    },
+    {
+      "q": "Lohnt sich ein Mähroboter ohne Begrenzungskabel für kleine Flächen?",
+      "a": "Ja, ab etwa 292 Euro (Lawnmaster OcuMow 80) entfällt das aufwendige Kabelverlegen komplett, was gerade bei kleinen Gärten den größten Installationsaufwand spart. Kamerabasierte Modelle brauchen allerdings Tageslicht und klare Rasenkanten; bei stark verschatteten Gärten bleibt ein Kabel-Modell wie der Gardena SILENO minimo zuverlässiger. Stand: 05.07.2026."
+    },
+    {
+      "q": "Welcher Mähroboter eignet sich für 100 qm Rasen?",
+      "a": "Für rund 100 m² sind der Bosch VISIMOW 18V-100 für 324 Euro (Markengerät, Akku separat) und der Lawnmaster OcuMow 80 für 292 Euro die passendsten Optionen. Wer etwas Reserve möchte, nimmt den Yardcare V100 für 312 Euro mit 150 m² Flächenleistung. Stand: 05.07.2026."
+    },
+    {
+      "q": "Welcher Mähroboter für kleinen Garten mit Steigung oder Hang?",
+      "a": "Bei Hanglagen ist der Mammotion YUKA mini 2 500 für 704 Euro die beste Wahl, da er dank Heckantrieb Steigungen bis 45 % bewältigt und bis 500 m² abdeckt. Die günstigeren Modelle im Vergleich schaffen nur etwa 30 bis 40 % Steigung. Stand: 05.07.2026."
+    }
+  ],
+  "asinReport": [
+    {
+      "name": "OcuMow Mähroboter 80 m²",
+      "asin": "B0FR46XBYX",
+      "status": "ok (Amazon-Suche)"
+    },
+    {
+      "name": "V100 Mähroboter",
+      "asin": "B0FX2BBFN1",
+      "status": "ok (Amazon-Suche)"
+    },
+    {
+      "name": "VISIMOW 18V-100",
+      "asin": "B0G4DVCN8K",
+      "status": "ok (Amazon-Suche)"
+    },
+    {
+      "name": "ViAX 250",
+      "asin": "B0G5B2W2MD",
+      "status": "ok (Amazon-Suche)"
+    },
+    {
+      "name": "SILENO minimo 350",
+      "asin": "B0CNPXSNBN",
+      "status": "ok (Amazon-Suche)"
+    },
+    {
+      "name": "YUKA mini 2 500",
+      "asin": "B0GCCLW2PL",
+      "status": "ok (Amazon-Suche)"
+    }
+  ]
+}

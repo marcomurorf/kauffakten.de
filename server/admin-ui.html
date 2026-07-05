@@ -87,7 +87,27 @@
   </div>
 
   <section style="margin-top:24px">
-    <h2>Statistik <span class="muted">(letzte 14 Tage)</span>
+    <h2>Live <span class="muted" id="live-meta"></span>
+      <label class="muted" style="float:right;font-weight:400"><input type="checkbox" id="chk-live" checked> Auto-Refresh (10 s)</label>
+    </h2>
+    <table>
+      <thead><tr><th>Zeit</th><th>Typ</th><th>Wer</th><th>Was</th><th>Referrer</th></tr></thead>
+      <tbody id="live-body"><tr><td colspan="5" class="muted">Lade …</td></tr></tbody>
+    </table>
+  </section>
+
+  <section style="margin-top:24px">
+    <h2>Live-Kategorien
+      <button class="secondary" id="btn-cats" style="float:right">Aktualisieren</button>
+    </h2>
+    <table>
+      <thead><tr><th>Kategorie</th><th>Produkte</th><th>Stand</th><th></th></tr></thead>
+      <tbody id="cat-body"><tr><td colspan="4" class="muted">Lade …</td></tr></tbody>
+    </table>
+  </section>
+
+  <section style="margin-top:24px">
+    <h2>Statistik <span class="muted">(letzte <select id="sel-days"><option>7</option><option selected>14</option><option>30</option><option>90</option></select> Tage)</span>
       <button class="secondary" id="btn-stats" style="float:right">Aktualisieren</button>
     </h2>
     <div class="cols">
@@ -245,7 +265,7 @@ async function refreshDrafts() {
 
 async function refreshStats() {
   try {
-    const s = await api("/api/stats");
+    const s = await api(`/api/stats?days=${$("sel-days").value}`);
     $("bot-total").textContent = `· ${s.bots.total} Zugriffe`;
     $("bot-body").innerHTML = s.bots.byBot.length
       ? s.bots.byBot.map(([bot, n]) => `<tr><td>${esc(bot)}</td><td class="hits">${n}</td></tr>`).join("")
@@ -265,9 +285,49 @@ async function refreshStats() {
   }
 }
 $("btn-stats").onclick = refreshStats;
+$("sel-days").onchange = refreshStats;
+
+// ---- Live-Feed ----
+const typeBadge = { bot: '<span class="badge new">Bot</span>', click: '<span class="badge covered">Klick</span>', visit: '<span class="badge" style="background:#f1f5f9;color:#475569">Besuch</span>' };
+async function refreshLive() {
+  try {
+    const l = await api("/api/live?limit=60");
+    $("live-meta").textContent = "· Stand " + l.generatedAt.slice(11, 19) + " UTC";
+    $("live-body").innerHTML = l.events.length ? l.events.map((e) => `
+      <tr>
+        <td style="white-space:nowrap">${esc(e.ts.slice(5, 16).replace("T", " "))}</td>
+        <td>${typeBadge[e.type] || esc(e.type)}</td>
+        <td>${esc(e.who)}</td>
+        <td>${esc(e.what)}${e.status && e.status >= 400 ? ` <span class="badge danger" style="background:#fee2e2;color:#b91c1c">${e.status}</span>` : ""}</td>
+        <td class="muted" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.ref || "")}</td>
+      </tr>`).join("")
+      : '<tr><td colspan="5" class="muted">Noch keine Ereignisse.</td></tr>';
+  } catch (e) {
+    $("live-body").innerHTML = `<tr><td colspan="5" class="muted">Fehler: ${esc(e.message)}</td></tr>`;
+  }
+}
+setInterval(() => { if ($("chk-live").checked) refreshLive(); }, 10000);
+
+// ---- Live-Kategorien ----
+async function refreshCats() {
+  try {
+    const cats = await api("/api/categories", { method: "GET" });
+    $("cat-body").innerHTML = cats.length ? cats.map((c) => `
+      <tr>
+        <td><strong>${esc(c.name)}</strong><br><span class="muted">${esc(c.slug)}</span></td>
+        <td>${c.products}${c.missingAsin ? ` <span class="badge new">${c.missingAsin}× ASIN fehlt</span>` : ""}</td>
+        <td class="muted">${esc(c.updatedAt || "")}</td>
+        <td><button class="secondary" data-regen="${esc(c.slug)}">Neu generieren</button></td>
+      </tr>`).join("")
+      : '<tr><td colspan="4" class="muted">Keine Live-Kategorien.</td></tr>';
+  } catch (e) {
+    $("cat-body").innerHTML = `<tr><td colspan="4" class="muted">Fehler: ${esc(e.message)}</td></tr>`;
+  }
+}
+$("btn-cats").onclick = refreshCats;
 
 async function refreshAll() {
-  await Promise.all([refreshStatus(), refreshSuggestions(), refreshDrafts(), refreshStats()]);
+  await Promise.all([refreshStatus(), refreshSuggestions(), refreshDrafts(), refreshStats(), refreshLive(), refreshCats()]);
 }
 
 $("btn-discover").onclick = async () => {
@@ -294,6 +354,16 @@ document.body.addEventListener("click", async (e) => {
   if (t.dataset.dismiss) {
     await api("/api/suggestions/dismiss", { body: { term: t.dataset.dismiss } });
     refreshSuggestions();
+  }
+  if (t.dataset.regen) {
+    if (!confirm(`"${t.dataset.regen}" mit frischen Amazon-Daten neu generieren?\nErgebnis landet als Entwurf zum Review (Live-Seite bleibt bis zur Freigabe unverändert).`)) return;
+    t.disabled = true; t.innerHTML = '<span class="spinner"></span> generiere …';
+    try {
+      await api(`/api/categories/${t.dataset.regen}/regenerate`, { body: {} });
+      await refreshAll();
+      alert("Entwurf erzeugt – bitte oben unter \"Entwürfe\" reviewen und freigeben.");
+    } catch (err) { alert("Fehler: " + err.message); }
+    t.disabled = false; t.textContent = "Neu generieren";
   }
   if (t.dataset.review) {
     currentSlug = t.dataset.review;

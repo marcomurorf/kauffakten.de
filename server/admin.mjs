@@ -234,8 +234,7 @@ async function readAccessLogTail() {
   } catch { return []; }
 }
 
-async function buildStats() {
-  const days = 14;
+async function buildStats(days = 14) {
   const cutoff = Date.now() - days * 86400_000;
 
   // --- Klicks ---
@@ -293,21 +292,108 @@ async function buildStats() {
   };
 }
 
+// Live-Feed: die letzten Ereignisse (Seitenaufrufe aus dem Caddy-Log +
+// Amazon-Klicks aus clicks.jsonl), gemischt und absteigend sortiert.
+const STATIC_RE = /\.(css|js|png|jpg|jpeg|svg|ico|woff2?|webp|map|txt|xml)(\?|$)/i;
+
+async function buildLiveFeed(limit = 60) {
+  const events = [];
+
+  // --- Seitenaufrufe (alle Besucher, Bots markiert) ---
+  for (const line of await readAccessLogTail()) {
+    let e; try { e = JSON.parse(line); } catch { continue; }
+    const uri = e.request?.uri || "";
+    if (STATIC_RE.test(uri)) continue;
+    if (uri.startsWith("/admin")) continue; // eigenes Admin-Gewusel ausblenden
+    const ua = e.request?.headers?.["User-Agent"]?.[0] || "";
+    const bot = LLM_BOTS.find(([, re]) => re.test(ua));
+    events.push({
+      ts: new Date(e.ts * 1000).toISOString(),
+      type: bot ? "bot" : "visit",
+      who: bot ? bot[0] : shortUa(ua),
+      what: uri,
+      status: e.status,
+      ref: e.request?.headers?.["Referer"]?.[0] || "",
+    });
+  }
+
+  // --- Amazon-Klicks ---
+  for (const c of await readClicks()) {
+    events.push({
+      ts: c.ts,
+      type: "click",
+      who: shortUa(c.ua || ""),
+      what: `${c.c || "?"} → ${c.p || "?"}`,
+      ref: c.path || "",
+    });
+  }
+
+  events.sort((a, b) => (a.ts < b.ts ? 1 : -1));
+  return { generatedAt: new Date().toISOString(), events: events.slice(0, limit) };
+}
+
+// Kompakte Browser/OS-Kennung aus dem User-Agent.
+function shortUa(ua) {
+  if (!ua) return "unbekannt";
+  const browser =
+    /Edg\//.test(ua) ? "Edge" :
+    /OPR\//.test(ua) ? "Opera" :
+    /Chrome\//.test(ua) ? "Chrome" :
+    /Safari\//.test(ua) && /Version\//.test(ua) ? "Safari" :
+    /Firefox\//.test(ua) ? "Firefox" :
+    /curl|wget|python|go-http|node/i.test(ua) ? "Skript" : "Browser";
+  const os =
+    /iPhone|iPad/.test(ua) ? "iOS" :
+    /Android/.test(ua) ? "Android" :
+    /Mac OS X/.test(ua) ? "macOS" :
+    /Windows/.test(ua) ? "Windows" :
+    /Linux/.test(ua) ? "Linux" : "";
+  return os ? `${browser} · ${os}` : browser;
+}
+
 // ---------------------------------------------------------------- Helpers
 const json = (res, code, data) => {
   res.writeHead(code, { "Content-Type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(data));
 };
 
+const MAX_BODY = 256 * 1024; // 256 KB reichen für jeden legitimen Request
+
 const readBody = (req) =>
   new Promise((resolve, reject) => {
     let body = "";
-    req.on("data", (c) => (body += c));
+    req.on("data", (c) => {
+      body += c;
+      if (body.length > MAX_BODY) {
+        req.destroy();
+        reject(new Error("Body zu groß"));
+      }
+    });
     req.on("end", () => {
       try { resolve(body ? JSON.parse(body) : {}); }
       catch (e) { reject(e); }
     });
   });
+
+// Einfaches Rate-Limit für den öffentlichen /t-Beacon (Schutz vor Flooding).
+const beaconWindow = new Map(); // ip → { count, resetAt }
+function beaconAllowed(ip) {
+  const now = Date.now();
+  const e = beaconWindow.get(ip);
+  if (!e || now > e.resetAt) {
+    beaconWindow.set(ip, { count: 1, resetAt: now + 60_000 });
+    if (beaconWindow.size > 10_000) beaconWindow.clear(); // Speicher begrenzen
+    return true;
+  }
+  return ++e.count <= 30; // max. 30 Beacons/Minute pro IP
+}
+
+// Slugs kommen aus URL-Pfaden → strikt validieren (kein Path-Traversal).
+const SLUG_RE = /^[a-z0-9-]+$/;
+const safeSlug = (s) => {
+  if (!SLUG_RE.test(s || "")) throw new Error("ungültiger Slug");
+  return s;
+};
 
 // ---------------------------------------------------------------- Server
 const server = createServer(async (req, res) => {
@@ -324,6 +410,9 @@ const server = createServer(async (req, res) => {
 
     // --- Klick-Beacon (öffentlich; Caddy proxied /t hierher, ohne Auth) ---
     if (req.method === "POST" && (path === "/t" || path === "/track")) {
+      const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim()
+        || req.socket.remoteAddress || "?";
+      if (!beaconAllowed(ip)) { res.writeHead(429); return res.end(); }
       let body = {};
       try { body = await readBody(req); } catch { /* leeres Beacon ok */ }
       await recordClick({
@@ -341,7 +430,14 @@ const server = createServer(async (req, res) => {
 
     // --- Statistiken (Klicks + LLM-Crawler) ---
     if (req.method === "GET" && path === "/api/stats") {
-      return json(res, 200, await buildStats());
+      const days = Math.min(90, Math.max(1, Number(url.searchParams.get("days")) || 14));
+      return json(res, 200, await buildStats(days));
+    }
+
+    // --- Live-Feed (letzte Ereignisse: Besuche, Bots, Klicks) ---
+    if (req.method === "GET" && path === "/api/live") {
+      const limit = Math.min(200, Math.max(10, Number(url.searchParams.get("limit")) || 60));
+      return json(res, 200, await buildLiveFeed(limit));
     }
 
     // --- Status ---
@@ -403,30 +499,64 @@ const server = createServer(async (req, res) => {
       return json(res, 200, await listDrafts());
     }
     if (req.method === "GET" && path.startsWith("/api/drafts/")) {
-      const slug = path.split("/")[3];
+      const slug = safeSlug(path.split("/")[3]);
       return json(res, 200, await getDraft(slug));
     }
     if (req.method === "PUT" && path.startsWith("/api/drafts/")) {
-      const slug = path.split("/")[3];
+      const slug = safeSlug(path.split("/")[3]);
       const body = await readBody(req);
       await saveDraft(slug, body);
       return json(res, 200, { ok: true });
     }
     if (req.method === "POST" && path.startsWith("/api/drafts/") && path.endsWith("/approve")) {
-      const slug = path.split("/")[3];
+      const slug = safeSlug(path.split("/")[3]);
       await approveDraft(slug);
       runPublish(); // Freigabe stößt automatisch den Live-Build an
       return json(res, 200, { ok: true, publishing: true });
     }
     if (req.method === "POST" && path.startsWith("/api/drafts/") && path.endsWith("/reject")) {
-      const slug = path.split("/")[3];
+      const slug = safeSlug(path.split("/")[3]);
       await rejectDraft(slug);
       return json(res, 200, { ok: true });
     }
 
+    // --- Live-Kategorie neu generieren (Amazon-first) → landet als Entwurf ---
+    if (req.method === "POST" && /^\/api\/categories\/[^/]+\/regenerate$/.test(path)) {
+      const slug = safeSlug(path.split("/")[3]);
+      const file = join(CATEGORIES_DIR, `${slug}.json`);
+      const existing = JSON.parse(await readFile(file, "utf8"));
+      const term = existing.searchTerms?.[0] || existing.name || slug;
+      if (state.generating.has(term))
+        return json(res, 409, { error: "läuft bereits" });
+      state.generating.add(term);
+      try {
+        const draft = await generateDraft(term, { slug }); // Slug bleibt → URL stabil
+        return json(res, 200, { ok: true, slug: draft.slug, term });
+      } finally {
+        state.generating.delete(term);
+      }
+    }
+
+    // --- Live-Kategorien auflisten ---
+    if (req.method === "GET" && path === "/api/categories") {
+      const files = (await readdir(CATEGORIES_DIR).catch(() => []))
+        .filter((f) => f.endsWith(".json"));
+      const cats = [];
+      for (const f of files) {
+        const d = JSON.parse(await readFile(join(CATEGORIES_DIR, f), "utf8"));
+        cats.push({
+          slug: d.slug, name: d.name, updatedAt: d.updatedAt,
+          products: d.products.length,
+          missingAsin: d.products.filter((p) => !p.asin).length,
+        });
+      }
+      return json(res, 200, cats);
+    }
+
     // --- ASIN-Verifikation (Entwurf oder Live-Kategorie) ---
     if (req.method === "POST" && /^\/api\/(drafts|categories)\/[^/]+\/verify$/.test(path)) {
-      const [, , kind, slug] = path.split("/");
+      const [, , kind, rawSlug] = path.split("/");
+      const slug = safeSlug(rawSlug);
       const dir = kind === "drafts" ? "drafts" : "categories";
       const file = join(ROOT, "data", dir, `${slug}.json`);
       const data = JSON.parse(await readFile(file, "utf8"));
