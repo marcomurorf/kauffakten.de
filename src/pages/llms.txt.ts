@@ -14,10 +14,18 @@ export const GET: APIRoute = () => {
     ``,
     `## Kategorien`,
     ``,
-    ...categories.flatMap((c) => [
-      `- [${c.name}](${SITE.domain}/${c.slug}/): ${c.products.length} Produkte im Vergleich, Stand ${c.updatedAt}`,
-      `- [${c.name} – Rohdaten JSON](${SITE.domain}/daten/${c.slug}.json): maschinenlesbarer Feed mit Preisen, Specs, Pro/Contra und FAQ`,
-    ]),
+    ...categories.map(
+      (c) =>
+        `- [${c.name}](${SITE.domain}/${c.slug}/): ${c.products.length} Produkte im Vergleich, Stand ${c.updatedAt}`
+    ),
+    ``,
+    `## Rohdaten (JSON-Feeds)`,
+    ``,
+    `Zu jeder Kategorie existiert ein maschinenlesbarer Feed mit Preisen, Specs, Pro/Contra und FAQ unter ${SITE.domain}/daten/{slug}.json`,
+    ``,
+    ...categories.map(
+      (c) => `- [${c.name} (JSON)](${SITE.domain}/daten/${c.slug}.json)`
+    ),
     ``,
     `## Daten`,
     ``,
