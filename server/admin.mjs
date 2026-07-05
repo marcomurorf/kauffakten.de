@@ -193,9 +193,62 @@ async function notifyBluesky(slug) {
     const session = await loginRes.json();
     if (!session.accessJwt)
       throw new Error(session.message || "Login fehlgeschlagen");
-    // Link als Facet, damit er in der App klickbar ist (Byte-Offsets!)
+
+    // Produktbild des Top-Produkts → Blob hochladen → Link-Karte mit Thumbnail.
+    // Ungültige ASINs liefern beim Amazon-CDN ein 43-Byte-GIF → Größe prüfen.
+    let thumb = null;
+    const top = (cat.products || []).find((p) => p.image || p.asin);
+    if (top) {
+      try {
+        const imgUrl =
+          top.image ||
+          `https://images-eu.ssl-images-amazon.com/images/P/${top.asin}.03._SL500_.jpg`;
+        const imgRes = await fetch(imgUrl, { signal: AbortSignal.timeout(10_000) });
+        const buf = Buffer.from(await imgRes.arrayBuffer());
+        if (imgRes.ok && buf.length > 1000 && buf.length < 950_000) {
+          const upRes = await fetch(
+            "https://bsky.social/xrpc/com.atproto.repo.uploadBlob",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": imgRes.headers.get("content-type") || "image/jpeg",
+                Authorization: `Bearer ${session.accessJwt}`,
+              },
+              body: buf,
+              signal: AbortSignal.timeout(15_000),
+            }
+          );
+          if (upRes.ok) thumb = (await upRes.json()).blob;
+        }
+      } catch {
+        /* ohne Bild weiter */
+      }
+    }
+
+    // Link-Karte (external embed); Link zusätzlich als Facet klickbar.
     const byteEnd = Buffer.byteLength(text);
     const byteStart = byteEnd - Buffer.byteLength(url);
+    const record = {
+      $type: "app.bsky.feed.post",
+      text,
+      createdAt: new Date().toISOString(),
+      langs: ["de"],
+      facets: [
+        {
+          index: { byteStart, byteEnd },
+          features: [{ $type: "app.bsky.richtext.facet#link", uri: url }],
+        },
+      ],
+      embed: {
+        $type: "app.bsky.embed.external",
+        external: {
+          uri: url,
+          title: `${name} im Vergleich – BookAndBuy`,
+          description: cat.intro || "",
+          ...(thumb ? { thumb } : {}),
+        },
+      },
+    };
     const postRes = await fetch(
       "https://bsky.social/xrpc/com.atproto.repo.createRecord",
       {
@@ -207,26 +260,13 @@ async function notifyBluesky(slug) {
         body: JSON.stringify({
           repo: session.did,
           collection: "app.bsky.feed.post",
-          record: {
-            $type: "app.bsky.feed.post",
-            text,
-            createdAt: new Date().toISOString(),
-            langs: ["de"],
-            facets: [
-              {
-                index: { byteStart, byteEnd },
-                features: [
-                  { $type: "app.bsky.richtext.facet#link", uri: url },
-                ],
-              },
-            ],
-          },
+          record,
         }),
         signal: AbortSignal.timeout(10_000),
       }
     );
     if (!postRes.ok) throw new Error(`HTTP ${postRes.status}`);
-    console.log(`Bluesky: Post für /${slug}/ abgesetzt`);
+    console.log(`Bluesky: Post für /${slug}/ abgesetzt${thumb ? " (mit Bild)" : ""}`);
   } catch (e) {
     console.error(`Bluesky-Post fehlgeschlagen (${slug}): ${e.message}`);
   }
