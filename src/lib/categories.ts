@@ -14,6 +14,8 @@ export interface Product {
   name: string;
   brand: string;
   asin: string;
+  /** Optionale explizite Bild-URL (überschreibt das Amazon-Widget-Bild). */
+  image?: string;
   price: Price;
   specs: Record<string, string | number>;
   pros: string[];

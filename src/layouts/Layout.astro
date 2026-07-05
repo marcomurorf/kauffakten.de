@@ -65,5 +65,22 @@ const canonicalUrl = canonical ?? new URL(Astro.url.pathname, SITE.domain).href;
         </nav>
       </div>
     </footer>
+    <script>
+      // Anonymes Klick-Tracking (keine Cookies, keine personenbezogenen Daten):
+      // registriert nur, WELCHER Produktlink geklickt wurde.
+      document.addEventListener("click", (e) => {
+        const a = (e.target as Element).closest?.("a[data-track]");
+        if (!a) return;
+        const payload = JSON.stringify({
+          t: "click",
+          k: a.getAttribute("data-track"),
+          p: a.getAttribute("data-product"),
+          c: a.getAttribute("data-cat"),
+          path: location.pathname,
+          ref: document.referrer.slice(0, 200),
+        });
+        navigator.sendBeacon?.("/t", payload);
+      });
+    </script>
   </body>
 </html>

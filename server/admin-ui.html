@@ -85,6 +85,33 @@
       </table>
     </section>
   </div>
+
+  <section style="margin-top:24px">
+    <h2>Statistik <span class="muted">(letzte 14 Tage)</span>
+      <button class="secondary" id="btn-stats" style="float:right">Aktualisieren</button>
+    </h2>
+    <div class="cols">
+      <div>
+        <h3 style="margin:8px 0">LLM-Crawler <span class="muted" id="bot-total"></span></h3>
+        <table>
+          <thead><tr><th>Bot</th><th>Zugriffe</th></tr></thead>
+          <tbody id="bot-body"><tr><td colspan="2" class="muted">Lade …</td></tr></tbody>
+        </table>
+        <p class="muted" id="bot-last"></p>
+        <h3 style="margin:8px 0">Meistgecrawlte Seiten</h3>
+        <table>
+          <tbody id="botpath-body"><tr><td class="muted">–</td></tr></tbody>
+        </table>
+      </div>
+      <div>
+        <h3 style="margin:8px 0">Amazon-Klicks <span class="muted" id="click-total"></span></h3>
+        <table>
+          <thead><tr><th>Kategorie / Produkt</th><th>Klicks</th></tr></thead>
+          <tbody id="click-body"><tr><td colspan="2" class="muted">Lade …</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 </main>
 
 <dialog id="dlg">
@@ -209,8 +236,31 @@ async function refreshDrafts() {
     : '<tr><td colspan="3" class="muted">Keine offenen Entwürfe.</td></tr>';
 }
 
+async function refreshStats() {
+  try {
+    const s = await api("/api/stats");
+    $("bot-total").textContent = `· ${s.bots.total} Zugriffe`;
+    $("bot-body").innerHTML = s.bots.byBot.length
+      ? s.bots.byBot.map(([bot, n]) => `<tr><td>${esc(bot)}</td><td class="hits">${n}</td></tr>`).join("")
+      : '<tr><td colspan="2" class="muted">Noch keine LLM-Crawler-Zugriffe erfasst.</td></tr>';
+    $("bot-last").textContent = s.bots.last
+      ? `Zuletzt: ${s.bots.last.bot} → ${s.bots.last.uri} (${s.bots.last.at.slice(0, 16).replace("T", " ")})`
+      : "";
+    $("botpath-body").innerHTML = s.bots.topPaths.length
+      ? s.bots.topPaths.map(([p, n]) => `<tr><td>${esc(p)}</td><td class="hits">${n}</td></tr>`).join("")
+      : '<tr><td class="muted">–</td></tr>';
+    $("click-total").textContent = `· ${s.clicks.total} gesamt`;
+    $("click-body").innerHTML = s.clicks.topProducts.length
+      ? s.clicks.topProducts.map(([k, n]) => `<tr><td>${esc(k)}</td><td class="hits">${n}</td></tr>`).join("")
+      : '<tr><td colspan="2" class="muted">Noch keine Klicks erfasst.</td></tr>';
+  } catch (e) {
+    $("bot-body").innerHTML = `<tr><td colspan="2" class="muted">Fehler: ${esc(e.message)}</td></tr>`;
+  }
+}
+$("btn-stats").onclick = refreshStats;
+
 async function refreshAll() {
-  await Promise.all([refreshStatus(), refreshSuggestions(), refreshDrafts()]);
+  await Promise.all([refreshStatus(), refreshSuggestions(), refreshDrafts(), refreshStats()]);
 }
 
 $("btn-discover").onclick = async () => {

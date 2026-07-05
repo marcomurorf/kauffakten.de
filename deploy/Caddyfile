@@ -9,6 +9,15 @@ www.bookandbuy.de {
 	root * /opt/bookandbuy/dist
 	encode gzip
 
+	# Access-Log (JSON) – Grundlage für die LLM-Crawler-Statistik im Admin
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 50MiB
+			roll_keep 5
+		}
+		format json
+	}
+
 	# Admin-Bereich: Reverse-Proxy auf den Node-Server, geschützt per Basic-Auth
 	redir /admin /admin/ permanent
 	handle /admin/* {
@@ -17,6 +26,11 @@ www.bookandbuy.de {
 			admin {$ADMIN_PASSWORD_HASH}
 		}
 		uri strip_prefix /admin
+		reverse_proxy 127.0.0.1:5177
+	}
+
+	# Klick-Beacon (öffentlich, ohne Auth) → Node-Server
+	handle /t {
 		reverse_proxy 127.0.0.1:5177
 	}
 

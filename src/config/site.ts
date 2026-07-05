@@ -20,3 +20,15 @@ export const AMAZON_TAG: string =
 export function amazonProductUrl(asin: string): string {
   return `https://www.amazon.de/dp/${asin}?tag=${AMAZON_TAG}`;
 }
+
+/** Produktbild über das offizielle Amazon-Associates-Widget (per ASIN). */
+export function amazonImageUrl(asin: string, size = "_SL500_"): string {
+  return `https://ws-eu.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN=${asin}&Format=${size}&ID=AsinImage&MarketPlace=DE&ServiceVersion=20070822&WS=1&tag=${AMAZON_TAG}`;
+}
+
+/** Bild eines Produkts: explizites image-Feld gewinnt, sonst Amazon-Widget. */
+export function productImageUrl(p: { asin?: string; image?: string }): string | null {
+  if (p.image) return p.image;
+  if (p.asin) return amazonImageUrl(p.asin);
+  return null;
+}
