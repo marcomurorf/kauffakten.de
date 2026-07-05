@@ -3,60 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BookAndBuy Admin</title>
-<style>
-  :root { --brand:#1a73e8; --brand-d:#1557b0; --bg:#f6f8fa; --border:#e2e8f0; }
-  * { box-sizing:border-box; }
-  body { margin:0; font:15px/1.5 -apple-system,system-ui,sans-serif; background:var(--bg); color:#1e293b; }
-  header { background:#fff; border-bottom:1px solid var(--border); padding:14px 24px; display:flex; align-items:center; gap:16px; }
-  header h1 { font-size:18px; margin:0; color:var(--brand-d); }
-  header .status { font-size:13px; color:#64748b; }
-  main { max-width:1100px; margin:0 auto; padding:24px; }
-  .cols { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
-  @media (max-width:900px){ .cols{grid-template-columns:1fr;} }
-  section { background:#fff; border:1px solid var(--border); border-radius:10px; padding:20px; }
-  h2 { font-size:16px; margin:0 0 12px; }
-  button { border:0; border-radius:6px; padding:7px 14px; font-size:13px; font-weight:600; cursor:pointer; background:var(--brand); color:#fff; }
-  button:hover { background:var(--brand-d); }
-  button.secondary { background:#e2e8f0; color:#334155; }
-  button.danger { background:#fee2e2; color:#b91c1c; }
-  button:disabled { opacity:.5; cursor:default; }
-  table { width:100%; border-collapse:collapse; font-size:14px; }
-  th,td { text-align:left; padding:8px 10px; border-top:1px solid var(--border); }
-  th { border-top:0; color:#64748b; font-size:12px; text-transform:uppercase; letter-spacing:.03em; }
-  .hits { font-weight:700; color:var(--brand-d); }
-  .badge { display:inline-block; font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px; }
-  .badge.covered { background:#dcfce7; color:#166534; }
-  .badge.new { background:#dbeafe; color:#1e40af; }
-  .muted { color:#94a3b8; font-size:13px; }
-  .spinner { display:inline-block; width:12px; height:12px; border:2px solid #cbd5e1; border-top-color:var(--brand); border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
-  @keyframes spin { to { transform:rotate(360deg);} }
-  dialog { border:1px solid var(--border); border-radius:12px; padding:0; width:min(760px,92vw); max-height:85vh; }
-  dialog::backdrop { background:rgba(15,23,42,.45); }
-  .dlg-head { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; border-bottom:1px solid var(--border); }
-  .dlg-body { padding:16px 20px; overflow:auto; max-height:60vh; }
-  .dlg-foot { display:flex; gap:10px; justify-content:flex-end; padding:14px 20px; border-top:1px solid var(--border); }
-  textarea { width:100%; min-height:340px; font:12px/1.5 ui-monospace,monospace; border:1px solid var(--border); border-radius:8px; padding:10px; }
-  .warn { background:#fef9c3; color:#854d0e; padding:8px 12px; border-radius:8px; font-size:13px; margin-bottom:12px; }
-  .toolbar { display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
-  .tabs { display:flex; gap:6px; margin-bottom:12px; }
-  .tabs button { background:#e2e8f0; color:#334155; }
-  .tabs button.active { background:var(--brand); color:#fff; }
-  .pcards { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:12px; }
-  .pcard { border:1px solid var(--border); border-radius:10px; padding:12px; background:#fff; }
-  .pcard .imgbox { height:130px; display:flex; align-items:center; justify-content:center; background:#f8fafc; border-radius:8px; margin-bottom:8px; }
-  .pcard img { max-height:120px; max-width:100%; object-fit:contain; }
-  .pcard .noimg { color:#94a3b8; font-size:12px; }
-  .pcard .pname { font-weight:600; font-size:13px; line-height:1.3; }
-  .pcard .pmeta { font-size:12px; color:#64748b; margin-top:4px; }
-  .pcard .pprice { font-weight:700; color:var(--brand-d); }
-  .pcard .plist { margin:6px 0 0; padding-left:16px; font-size:12px; }
-  .pcard .plist.cons { color:#b91c1c; }
-</style>
+<title>BookAndBuy Admin – Inhalte</title>
+<link rel="stylesheet" href="./admin-ui.css">
 </head>
 <body>
 <header>
   <h1>BookAndBuy Admin</h1>
+  <span id="nav"></span>
   <span class="status" id="llm-status"></span>
   <span class="status" id="disc-status" style="margin-left:auto"></span>
   <span class="status" id="pub-status"></span>
@@ -70,68 +23,25 @@
         <button id="btn-discover">Discovery starten</button>
         <label class="muted"><input type="checkbox" id="chk-covered"> abgedeckte zeigen</label>
       </div>
+      <div class="scroll-x">
       <table>
         <thead><tr><th>Hits</th><th>Begriff</th><th>Status</th><th></th></tr></thead>
         <tbody id="sug-body"><tr><td colspan="4" class="muted">Lade …</td></tr></tbody>
       </table>
+      </div>
     </section>
 
     <section>
       <h2>Entwürfe (Review nötig)</h2>
       <div class="warn">Entwürfe kommen vom LLM. Preise/ASINs vor Freigabe prüfen — leere ASIN = LLM war unsicher.</div>
+      <div class="scroll-x">
       <table>
         <thead><tr><th>Kategorie</th><th>Produkte</th><th></th></tr></thead>
         <tbody id="draft-body"><tr><td colspan="3" class="muted">Lade …</td></tr></tbody>
       </table>
+      </div>
     </section>
   </div>
-
-  <section style="margin-top:24px">
-    <h2>Live <span class="muted" id="live-meta"></span>
-      <label class="muted" style="float:right;font-weight:400"><input type="checkbox" id="chk-live" checked> Auto-Refresh (10 s)</label>
-    </h2>
-    <table>
-      <thead><tr><th>Zeit</th><th>Typ</th><th>Wer</th><th>Was</th><th>Referrer</th></tr></thead>
-      <tbody id="live-body"><tr><td colspan="5" class="muted">Lade …</td></tr></tbody>
-    </table>
-  </section>
-
-  <section style="margin-top:24px">
-    <h2>Live-Kategorien
-      <button class="secondary" id="btn-cats" style="float:right">Aktualisieren</button>
-    </h2>
-    <table>
-      <thead><tr><th>Kategorie</th><th>Produkte</th><th>Stand</th><th></th></tr></thead>
-      <tbody id="cat-body"><tr><td colspan="4" class="muted">Lade …</td></tr></tbody>
-    </table>
-  </section>
-
-  <section style="margin-top:24px">
-    <h2>Statistik <span class="muted">(letzte <select id="sel-days"><option>7</option><option selected>14</option><option>30</option><option>90</option></select> Tage)</span>
-      <button class="secondary" id="btn-stats" style="float:right">Aktualisieren</button>
-    </h2>
-    <div class="cols">
-      <div>
-        <h3 style="margin:8px 0">LLM-Crawler <span class="muted" id="bot-total"></span></h3>
-        <table>
-          <thead><tr><th>Bot</th><th>Zugriffe</th></tr></thead>
-          <tbody id="bot-body"><tr><td colspan="2" class="muted">Lade …</td></tr></tbody>
-        </table>
-        <p class="muted" id="bot-last"></p>
-        <h3 style="margin:8px 0">Meistgecrawlte Seiten</h3>
-        <table>
-          <tbody id="botpath-body"><tr><td class="muted">–</td></tr></tbody>
-        </table>
-      </div>
-      <div>
-        <h3 style="margin:8px 0">Amazon-Klicks <span class="muted" id="click-total"></span></h3>
-        <table>
-          <thead><tr><th>Kategorie / Produkt</th><th>Klicks</th></tr></thead>
-          <tbody id="click-body"><tr><td colspan="2" class="muted">Lade …</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
 </main>
 
 <dialog id="dlg">
@@ -158,31 +68,16 @@
   </div>
 </dialog>
 
+<script src="./admin-shared.js"></script>
 <script>
-const $ = (id) => document.getElementById(id);
-const api = async (path, opts) => {
-  // relative Pfade, damit die UI auch hinter /admin/ (Reverse-Proxy) funktioniert
-  const res = await fetch(path.replace(/^\//, ""), opts && {
-    method: opts.method || "POST",
-    headers: { "Content-Type": "application/json" },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
-  });
-  if (!res.ok) throw new Error((await res.json()).error || res.status);
-  return res.json();
-};
+$("nav").outerHTML = renderNav("dashboard");
 
 let currentSlug = null;
 const dlg = $("dlg");
 
-// ---- Produkt-Vorschau (Bilder via Amazon-Bilder-CDN anhand der ASIN) ----
-const AMAZON_TAG = "smarteshome-21";
-const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const asinImg = (asin) =>
-  `https://images-eu.ssl-images-amazon.com/images/P/${encodeURIComponent(asin)}.03._SL250_.jpg`;
-const prodImg = (p) => p.image || (p.asin ? asinImg(p.asin) : null);
 const asinBadge = (p) => {
   if (!p.asinStatus) return "";
-  const cls = p.asinStatus === "ok" ? "covered" : p.asinStatus === "korrigiert" ? "covered" : "new";
+  const cls = p.asinStatus === "ok" || p.asinStatus === "korrigiert" ? "covered" : "new";
   return ` <span class="badge ${cls}" title="geprüft ${esc(p.asinCheckedAt || "")}">ASIN ${esc(p.asinStatus)}</span>`;
 };
 
@@ -216,25 +111,20 @@ $("tab-preview").onclick = () => showTab("preview");
 $("tab-json").onclick = () => showTab("json");
 
 async function refreshStatus() {
-  const s = await api("/api/status");
+  const s = await refreshPublishStatus();
+  if (!s) return null;
   $("llm-status").textContent = s.llmConfigured
     ? "LLM: verbunden" : "LLM: ⚠️ Key fehlt in .env";
   const d = s.discovery;
   $("disc-status").innerHTML = d.running
-    ? '<span class="spinner"></span> ' + d.progress
-    : (d.progress || "");
+    ? '<span class="spinner"></span> ' + esc(d.progress)
+    : esc(d.progress || "");
   $("btn-discover").disabled = d.running;
-  const p = s.publish;
-  $("pub-status").innerHTML = p.running
-    ? '<span class="spinner"></span> Build läuft …'
-    : p.ok === true ? "Build ✅" : p.ok === false ? "Build ❌" : "";
-  $("pub-status").title = p.output || "";
-  $("btn-publish").disabled = p.running;
   return s;
 }
 
 async function refreshSuggestions() {
-  const data = await api("/api/suggestions");
+  const data = await api("/api/suggestions", { method: "GET" });
   $("sug-meta").textContent = data.updatedAt
     ? "· Stand " + data.updatedAt.slice(0, 16).replace("T", " ") : "";
   const showCovered = $("chk-covered").checked;
@@ -242,104 +132,36 @@ async function refreshSuggestions() {
   $("sug-body").innerHTML = items.length ? items.map(i => `
     <tr>
       <td class="hits">${i.hits}</td>
-      <td>${i.term}</td>
+      <td>${esc(i.term)}</td>
       <td>${i.covered ? '<span class="badge covered">abgedeckt</span>' : '<span class="badge new">neu</span>'}</td>
       <td style="white-space:nowrap">
-        ${i.covered ? "" : `<button data-gen="${i.term}">Entwurf erzeugen</button>`}
-        <button class="secondary" data-dismiss="${i.term}">✕</button>
+        ${i.covered ? "" : `<button data-gen="${esc(i.term)}">Entwurf erzeugen</button>`}
+        <button class="secondary" data-dismiss="${esc(i.term)}">✕</button>
       </td>
     </tr>`).join("")
     : '<tr><td colspan="4" class="muted">Keine Vorschläge – Discovery starten.</td></tr>';
 }
 
 async function refreshDrafts() {
-  const drafts = await api("/api/drafts");
+  const drafts = await api("/api/drafts", { method: "GET" });
   $("draft-body").innerHTML = drafts.length ? drafts.map(d => `
     <tr>
-      <td><strong>${d.name}</strong><br><span class="muted">${d.slug}</span></td>
+      <td><strong>${esc(d.name)}</strong><br><span class="muted">${esc(d.slug)}</span></td>
       <td>${d.products.length}${d.products.some(p => !p.asin) ? ' <span class="badge new">ASIN fehlt</span>' : ""}</td>
-      <td><button data-review="${d.slug}">Review</button></td>
+      <td><button data-review="${esc(d.slug)}">Review</button></td>
     </tr>`).join("")
     : '<tr><td colspan="3" class="muted">Keine offenen Entwürfe.</td></tr>';
 }
 
-async function refreshStats() {
-  try {
-    const s = await api(`/api/stats?days=${$("sel-days").value}`);
-    $("bot-total").textContent = `· ${s.bots.total} Zugriffe`;
-    $("bot-body").innerHTML = s.bots.byBot.length
-      ? s.bots.byBot.map(([bot, n]) => `<tr><td>${esc(bot)}</td><td class="hits">${n}</td></tr>`).join("")
-      : '<tr><td colspan="2" class="muted">Noch keine LLM-Crawler-Zugriffe erfasst.</td></tr>';
-    $("bot-last").textContent = s.bots.last
-      ? `Zuletzt: ${s.bots.last.bot} → ${s.bots.last.uri} (${s.bots.last.at.slice(0, 16).replace("T", " ")})`
-      : "";
-    $("botpath-body").innerHTML = s.bots.topPaths.length
-      ? s.bots.topPaths.map(([p, n]) => `<tr><td>${esc(p)}</td><td class="hits">${n}</td></tr>`).join("")
-      : '<tr><td class="muted">–</td></tr>';
-    $("click-total").textContent = `· ${s.clicks.total} gesamt`;
-    $("click-body").innerHTML = s.clicks.topProducts.length
-      ? s.clicks.topProducts.map(([k, n]) => `<tr><td>${esc(k)}</td><td class="hits">${n}</td></tr>`).join("")
-      : '<tr><td colspan="2" class="muted">Noch keine Klicks erfasst.</td></tr>';
-  } catch (e) {
-    $("bot-body").innerHTML = `<tr><td colspan="2" class="muted">Fehler: ${esc(e.message)}</td></tr>`;
-  }
-}
-$("btn-stats").onclick = refreshStats;
-$("sel-days").onchange = refreshStats;
-
-// ---- Live-Feed ----
-const typeBadge = { bot: '<span class="badge new">Bot</span>', click: '<span class="badge covered">Klick</span>', visit: '<span class="badge" style="background:#f1f5f9;color:#475569">Besuch</span>' };
-async function refreshLive() {
-  try {
-    const l = await api("/api/live?limit=60");
-    $("live-meta").textContent = "· Stand " + l.generatedAt.slice(11, 19) + " UTC";
-    $("live-body").innerHTML = l.events.length ? l.events.map((e) => `
-      <tr>
-        <td style="white-space:nowrap">${esc(e.ts.slice(5, 16).replace("T", " "))}</td>
-        <td>${typeBadge[e.type] || esc(e.type)}</td>
-        <td>${esc(e.who)}</td>
-        <td>${esc(e.what)}${e.status && e.status >= 400 ? ` <span class="badge danger" style="background:#fee2e2;color:#b91c1c">${e.status}</span>` : ""}</td>
-        <td class="muted" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.ref || "")}</td>
-      </tr>`).join("")
-      : '<tr><td colspan="5" class="muted">Noch keine Ereignisse.</td></tr>';
-  } catch (e) {
-    $("live-body").innerHTML = `<tr><td colspan="5" class="muted">Fehler: ${esc(e.message)}</td></tr>`;
-  }
-}
-setInterval(() => { if ($("chk-live").checked) refreshLive(); }, 10000);
-
-// ---- Live-Kategorien ----
-async function refreshCats() {
-  try {
-    const cats = await api("/api/categories", { method: "GET" });
-    $("cat-body").innerHTML = cats.length ? cats.map((c) => `
-      <tr>
-        <td><strong>${esc(c.name)}</strong><br><span class="muted">${esc(c.slug)}</span></td>
-        <td>${c.products}${c.missingAsin ? ` <span class="badge new">${c.missingAsin}× ASIN fehlt</span>` : ""}</td>
-        <td class="muted">${esc(c.updatedAt || "")}</td>
-        <td><button class="secondary" data-regen="${esc(c.slug)}">Neu generieren</button></td>
-      </tr>`).join("")
-      : '<tr><td colspan="4" class="muted">Keine Live-Kategorien.</td></tr>';
-  } catch (e) {
-    $("cat-body").innerHTML = `<tr><td colspan="4" class="muted">Fehler: ${esc(e.message)}</td></tr>`;
-  }
-}
-$("btn-cats").onclick = refreshCats;
-
 async function refreshAll() {
-  await Promise.all([refreshStatus(), refreshSuggestions(), refreshDrafts(), refreshStats(), refreshLive(), refreshCats()]);
+  await Promise.all([refreshStatus(), refreshSuggestions(), refreshDrafts()]);
 }
 
 $("btn-discover").onclick = async () => {
   await api("/api/discovery/run", { body: {} });
   poll();
 };
-
-$("btn-publish").onclick = async () => {
-  await api("/api/publish", { body: {} });
-  poll();
-};
-
+wirePublishButton(refreshAll);
 $("chk-covered").onchange = refreshSuggestions;
 
 document.body.addEventListener("click", async (e) => {
@@ -354,16 +176,6 @@ document.body.addEventListener("click", async (e) => {
   if (t.dataset.dismiss) {
     await api("/api/suggestions/dismiss", { body: { term: t.dataset.dismiss } });
     refreshSuggestions();
-  }
-  if (t.dataset.regen) {
-    if (!confirm(`"${t.dataset.regen}" mit frischen Amazon-Daten neu generieren?\nErgebnis landet als Entwurf zum Review (Live-Seite bleibt bis zur Freigabe unverändert).`)) return;
-    t.disabled = true; t.innerHTML = '<span class="spinner"></span> generiere …';
-    try {
-      await api(`/api/categories/${t.dataset.regen}/regenerate`, { body: {} });
-      await refreshAll();
-      alert("Entwurf erzeugt – bitte oben unter \"Entwürfe\" reviewen und freigeben.");
-    } catch (err) { alert("Fehler: " + err.message); }
-    t.disabled = false; t.textContent = "Neu generieren";
   }
   if (t.dataset.review) {
     currentSlug = t.dataset.review;
@@ -387,7 +199,6 @@ $("dlg-verify").onclick = async () => {
   const btn = $("dlg-verify");
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> prüfe …';
   try {
-    // erst aktuellen JSON-Stand speichern, dann serverseitig verifizieren
     const data = JSON.parse($("dlg-json").value);
     await api("/api/drafts/" + currentSlug, { method: "PUT", body: data });
     const r = await api(`/api/drafts/${currentSlug}/verify`, { body: {} });
@@ -418,7 +229,7 @@ $("dlg-reject").onclick = async () => {
 let pollTimer = null;
 async function poll() {
   const s = await refreshStatus();
-  if (s.discovery.running || s.publish.running) {
+  if (s && (s.discovery.running || s.publish.running)) {
     pollTimer = setTimeout(poll, 2000);
   } else {
     clearTimeout(pollTimer);

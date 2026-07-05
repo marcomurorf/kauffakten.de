@@ -29,8 +29,18 @@ loadEnv();
 const PORT = Number(process.env.ADMIN_PORT || 5177);
 const HOST = process.env.ADMIN_HOST || "127.0.0.1";
 const SUGGESTIONS_FILE = join(ROOT, "data", "suggestions.json");
+const SETTINGS_FILE = join(ROOT, "data", "settings.json");
 const CATEGORIES_DIR = join(ROOT, "data", "categories");
 const execFileAsync = promisify(execFile);
+
+// Statische Admin-Seiten & -Assets (nur Whitelist, kein Verzeichnis-Listing)
+const ADMIN_PAGES = {
+  "/": ["admin-ui.html", "text/html"],
+  "/produkte": ["admin-produkte.html", "text/html"],
+  "/statistik": ["admin-statistik.html", "text/html"],
+  "/admin-ui.css": ["admin-ui.css", "text/css"],
+  "/admin-shared.js": ["admin-shared.js", "text/javascript"],
+};
 
 // ---------------------------------------------------------------- Zustand
 const state = {
@@ -38,7 +48,27 @@ const state = {
   generating: new Set(), // Begriffe, für die gerade ein Entwurf erzeugt wird
   publish: { running: false, ok: null, output: "", finishedAt: null },
   autoDrafting: false,
+  recheck: {
+    running: false, progress: "", nextAt: null,
+    lastFinishedAt: null, lastSummary: "",
+  },
 };
+
+// --------------------------------------------------------- Einstellungen
+const DEFAULT_SETTINGS = { recheckHours: 12 };
+
+async function loadSettings() {
+  try {
+    return { ...DEFAULT_SETTINGS, ...JSON.parse(await readFile(SETTINGS_FILE, "utf8")) };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+async function saveSettings(s) {
+  await mkdir(join(ROOT, "data"), { recursive: true });
+  await writeFile(SETTINGS_FILE, JSON.stringify(s, null, 2), "utf8");
+}
 
 async function loadSuggestions() {
   try {
@@ -177,6 +207,64 @@ function scheduleAutoPilot() {
     scheduleAutoPilot();
   }, ms);
   console.log(`[auto] Nächster automatischer Lauf: ${next.toISOString()}`);
+}
+
+// ------------------------------- Recheck-Scheduler (Live-Kategorien)
+// Prüft periodisch die ASINs aller Live-Kategorien (Bild-CDN, bei Fehlern
+// Korrektur über die Amazon-Suche). Intervall via data/settings.json
+// (recheckHours, 0 = aus) – im Admin einstellbar. Bei Korrekturen wird
+// automatisch neu gebaut.
+let recheckTimer = null;
+
+async function runRecheck() {
+  if (state.recheck.running) return;
+  state.recheck.running = true;
+  state.recheck.progress = "gestartet …";
+  let changed = 0, checked = 0, problems = 0;
+  try {
+    const files = (await readdir(CATEGORIES_DIR).catch(() => []))
+      .filter((f) => f.endsWith(".json"));
+    for (const f of files) {
+      const file = join(CATEGORIES_DIR, f);
+      const data = JSON.parse(await readFile(file, "utf8"));
+      state.recheck.progress = `prüfe ${data.slug} …`;
+      const report = await verifyProducts(data.products, (msg) => {
+        state.recheck.progress = `${data.slug}: ${msg}`;
+      });
+      checked += report.length;
+      changed += report.filter((e) => e.status === "korrigiert").length;
+      problems += report.filter((e) => e.status !== "ok" && e.status !== "korrigiert").length;
+      data.asinReport = report;
+      await writeFile(file, JSON.stringify(data, null, 2), "utf8");
+    }
+    state.recheck.lastSummary =
+      `${checked} Produkte geprüft, ${changed} korrigiert, ${problems} Probleme`;
+    if (changed > 0) runPublish(); // korrigierte Daten → Site neu bauen
+  } catch (e) {
+    state.recheck.lastSummary = `Fehler: ${e.message}`;
+  } finally {
+    state.recheck.running = false;
+    state.recheck.progress = "";
+    state.recheck.lastFinishedAt = new Date().toISOString();
+  }
+}
+
+async function scheduleRecheck() {
+  clearTimeout(recheckTimer);
+  const { recheckHours } = await loadSettings();
+  if (!recheckHours || recheckHours <= 0) {
+    state.recheck.nextAt = null;
+    console.log("[recheck] deaktiviert (recheckHours=0)");
+    return;
+  }
+  const ms = recheckHours * 3600_000;
+  state.recheck.nextAt = new Date(Date.now() + ms).toISOString();
+  recheckTimer = setTimeout(async () => {
+    console.log("[recheck] Periodischer Lauf startet");
+    await runRecheck();
+    scheduleRecheck();
+  }, ms);
+  console.log(`[recheck] Nächster Lauf: ${state.recheck.nextAt} (alle ${recheckHours} h)`);
 }
 
 // ------------------------------------------------------ Tracking & Stats
@@ -401,11 +489,12 @@ const server = createServer(async (req, res) => {
   const path = url.pathname;
 
   try {
-    // --- UI ---
-    if (req.method === "GET" && path === "/") {
-      const html = await readFile(join(ROOT, "server", "admin-ui.html"), "utf8");
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      return res.end(html);
+    // --- UI (statische Admin-Seiten, Whitelist) ---
+    if (req.method === "GET" && ADMIN_PAGES[path]) {
+      const [file, type] = ADMIN_PAGES[path];
+      const body = await readFile(join(ROOT, "server", file), "utf8");
+      res.writeHead(200, { "Content-Type": `${type}; charset=utf-8` });
+      return res.end(body);
     }
 
     // --- Klick-Beacon (öffentlich; Caddy proxied /t hierher, ohne Auth) ---
@@ -537,20 +626,52 @@ const server = createServer(async (req, res) => {
       }
     }
 
-    // --- Live-Kategorien auflisten ---
+    // --- Live-Kategorien auflisten (?full=1 → inkl. Produktliste) ---
     if (req.method === "GET" && path === "/api/categories") {
+      const full = url.searchParams.get("full") === "1";
       const files = (await readdir(CATEGORIES_DIR).catch(() => []))
         .filter((f) => f.endsWith(".json"));
       const cats = [];
       for (const f of files) {
         const d = JSON.parse(await readFile(join(CATEGORIES_DIR, f), "utf8"));
-        cats.push({
+        const cat = {
           slug: d.slug, name: d.name, updatedAt: d.updatedAt,
           products: d.products.length,
           missingAsin: d.products.filter((p) => !p.asin).length,
-        });
+        };
+        if (full) {
+          cat.items = d.products.map((p) => ({
+            name: p.name, brand: p.brand || "", asin: p.asin || "",
+            image: p.image || "", price: p.price || null,
+            asinStatus: p.asinStatus || "", asinCheckedAt: p.asinCheckedAt || "",
+          }));
+        }
+        cats.push(cat);
       }
       return json(res, 200, cats);
+    }
+
+    // --- Einstellungen (Recheck-Intervall) ---
+    if (req.method === "GET" && path === "/api/settings") {
+      const s = await loadSettings();
+      return json(res, 200, { ...s, recheck: state.recheck });
+    }
+    if (req.method === "PUT" && path === "/api/settings") {
+      const body = await readBody(req);
+      const hours = Math.max(0, Math.min(720, Number(body.recheckHours)));
+      if (!Number.isFinite(hours)) return json(res, 400, { error: "recheckHours ungültig" });
+      const s = await loadSettings();
+      s.recheckHours = hours;
+      await saveSettings(s);
+      await scheduleRecheck(); // Timer sofort mit neuem Intervall neu setzen
+      return json(res, 200, { ...s, recheck: state.recheck });
+    }
+
+    // --- Recheck sofort ausführen ---
+    if (req.method === "POST" && path === "/api/recheck/run") {
+      if (state.recheck.running) return json(res, 409, { error: "läuft bereits" });
+      runRecheck(); // Hintergrund
+      return json(res, 202, { started: true });
     }
 
     // --- ASIN-Verifikation (Entwurf oder Live-Kategorie) ---
@@ -575,5 +696,8 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`BookAndBuy-Admin läuft: http://${HOST}:${PORT}`);
   console.log(`Azure OpenAI: ${llmConfigured() ? "konfiguriert ✅" : "NICHT konfiguriert – Key in .env setzen"}`);
-  if (process.env.AUTO_PILOT !== "0") scheduleAutoPilot();
+  if (process.env.AUTO_PILOT !== "0") {
+    scheduleAutoPilot();
+    scheduleRecheck();
+  }
 });

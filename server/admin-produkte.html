@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BookAndBuy Admin – Live-Produkte</title>
+<link rel="stylesheet" href="./admin-ui.css">
+</head>
+<body>
+<header>
+  <h1>BookAndBuy Admin</h1>
+  <span id="nav"></span>
+  <span class="status" id="pub-status" style="margin-left:auto"></span>
+  <button id="btn-publish">Site neu bauen</button>
+</header>
+<main>
+  <section style="margin-bottom:20px">
+    <h2>Automatischer Recheck
+      <span class="muted" id="recheck-state" style="font-weight:400"></span>
+    </h2>
+    <div class="toolbar">
+      <label>Live-Produkte alle
+        <input type="number" id="inp-hours" min="0" max="720" step="1" style="width:70px"> Stunden prüfen
+      </label>
+      <button id="btn-save-settings">Speichern</button>
+      <button class="secondary" id="btn-recheck-now">Jetzt alle prüfen</button>
+    </div>
+    <p class="muted">Prüft ASINs aller Live-Kategorien (Bild-CDN + ggf. Amazon-Suche zur Korrektur).
+      Bei Korrekturen wird die Site automatisch neu gebaut. 0 = Recheck aus.</p>
+    <p class="muted" id="recheck-log"></p>
+  </section>
+
+  <section>
+    <h2>Live-Kategorien &amp; Produkte
+      <button class="secondary" id="btn-cats" style="float:right">Aktualisieren</button>
+    </h2>
+    <div id="cat-list"><p class="muted">Lade …</p></div>
+  </section>
+</main>
+
+<script src="./admin-shared.js"></script>
+<script>
+$("nav").outerHTML = renderNav("produkte");
+wirePublishButton();
+refreshPublishStatus();
+
+const statusBadge = (p) => {
+  if (!p.asin) return '<span class="badge err">keine ASIN</span>';
+  if (!p.asinStatus) return '<span class="badge new">ungeprüft</span>';
+  if (p.asinStatus === "ok" || p.asinStatus === "korrigiert")
+    return `<span class="badge covered" title="geprüft ${esc(p.asinCheckedAt || "")}">${esc(p.asinStatus)}</span>`;
+  return `<span class="badge err" title="geprüft ${esc(p.asinCheckedAt || "")}">${esc(p.asinStatus)}</span>`;
+};
+
+async function refreshCats() {
+  try {
+    const cats = await api("/api/categories?full=1", { method: "GET" });
+    $("cat-list").innerHTML = cats.length ? cats.map((c) => `
+      <div style="margin-bottom:22px">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">
+          <strong style="font-size:15px">${esc(c.name)}</strong>
+          <a class="muted" href="https://www.bookandbuy.de/${esc(c.slug)}/" target="_blank" rel="noopener">/${esc(c.slug)}/ ↗</a>
+          <span class="muted">Stand: ${esc(c.updatedAt || "?")}</span>
+          ${c.missingAsin ? `<span class="badge err">${c.missingAsin}× ASIN fehlt</span>` : '<span class="badge covered">alle ASINs ok</span>'}
+          <span style="margin-left:auto;display:flex;gap:8px">
+            <button class="secondary" data-verify="${esc(c.slug)}">ASINs prüfen</button>
+            <button class="secondary" data-regen="${esc(c.slug)}">Neu generieren</button>
+          </span>
+        </div>
+        ${(c.items || []).map((p) => `
+          <div class="prow">
+            ${prodImg(p) ? `<img src="${esc(prodImg(p))}" alt="" loading="lazy">` : '<span style="width:44px"></span>'}
+            <div class="pinfo">
+              <div class="n">${esc(p.name)}</div>
+              <div class="m">${p.asin
+                ? `<a href="https://www.amazon.de/dp/${esc(p.asin)}?tag=${AMAZON_TAG}" target="_blank" rel="noopener">${esc(p.asin)}</a>`
+                : "—"} · ${statusBadge(p)}</div>
+            </div>
+            <div class="pr">${p.price?.value != null ? p.price.value + " €" : "?"}</div>
+          </div>`).join("")}
+      </div>`).join("")
+      : '<p class="muted">Keine Live-Kategorien.</p>';
+  } catch (e) {
+    $("cat-list").innerHTML = `<p class="muted">Fehler: ${esc(e.message)}</p>`;
+  }
+}
+$("btn-cats").onclick = refreshCats;
+
+document.body.addEventListener("click", async (e) => {
+  const t = e.target;
+  if (t.dataset.regen) {
+    if (!confirm(`"${t.dataset.regen}" mit frischen Amazon-Daten neu generieren?\nErgebnis landet als Entwurf zum Review (Live-Seite bleibt bis zur Freigabe unverändert).`)) return;
+    t.disabled = true; t.innerHTML = '<span class="spinner"></span> generiere …';
+    try {
+      await api(`/api/categories/${t.dataset.regen}/regenerate`, { body: {} });
+      alert('Entwurf erzeugt – unter "Inhalte" reviewen und freigeben.');
+    } catch (err) { alert("Fehler: " + err.message); }
+    t.disabled = false; t.textContent = "Neu generieren";
+  }
+  if (t.dataset.verify) {
+    t.disabled = true; t.innerHTML = '<span class="spinner"></span> prüfe …';
+    try {
+      const r = await api(`/api/categories/${t.dataset.verify}/verify`, { body: {} });
+      alert("ASIN-Prüfung:\n" + r.report.map((e) =>
+        `• ${e.name}: ${e.status}${e.fixedFrom != null ? ` (${e.fixedFrom || "leer"} → ${e.asin})` : ""}`).join("\n"));
+      refreshCats();
+    } catch (err) { alert("Fehler: " + err.message); }
+    t.disabled = false; t.textContent = "ASINs prüfen";
+  }
+});
+
+// ---- Recheck-Einstellungen & -Status ----
+async function refreshRecheck() {
+  try {
+    const s = await api("/api/settings", { method: "GET" });
+    if (document.activeElement !== $("inp-hours"))
+      $("inp-hours").value = s.recheckHours;
+    const r = s.recheck || {};
+    $("recheck-state").textContent = r.running
+      ? "· läuft: " + (r.progress || "…")
+      : s.recheckHours > 0 && r.nextAt
+        ? "· nächster Lauf: " + r.nextAt.slice(0, 16).replace("T", " ") + " UTC"
+        : s.recheckHours > 0 ? "" : "· aus";
+    $("recheck-log").textContent = r.lastFinishedAt
+      ? `Letzter Lauf: ${r.lastFinishedAt.slice(0, 16).replace("T", " ")} UTC – ${r.lastSummary || ""}`
+      : "";
+    $("btn-recheck-now").disabled = !!r.running;
+  } catch { /* Seite bleibt nutzbar */ }
+}
+
+$("btn-save-settings").onclick = async () => {
+  const hours = Math.max(0, Math.min(720, Number($("inp-hours").value) || 0));
+  await api("/api/settings", { method: "PUT", body: { recheckHours: hours } });
+  refreshRecheck();
+};
+
+$("btn-recheck-now").onclick = async () => {
+  await api("/api/recheck/run", { body: {} });
+  refreshRecheck();
+};
+
+setInterval(refreshRecheck, 5000);
+refreshRecheck();
+refreshCats();
+</script>
+</body>
+</html>

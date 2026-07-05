@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BookAndBuy Admin – Statistik</title>
+<link rel="stylesheet" href="./admin-ui.css">
+</head>
+<body>
+<header>
+  <h1>BookAndBuy Admin</h1>
+  <span id="nav"></span>
+  <span class="status" id="live-meta" style="margin-left:auto"></span>
+  <label class="status"><input type="checkbox" id="chk-live" checked> Auto-Refresh (5 s)</label>
+</header>
+<main>
+  <div class="counters">
+    <div class="counter"><div class="num" id="cnt-visits">–</div><div class="lbl">Besuche heute</div></div>
+    <div class="counter"><div class="num" id="cnt-bots">–</div><div class="lbl">Bot-/KI-Zugriffe heute</div></div>
+    <div class="counter"><div class="num" id="cnt-clicks">–</div><div class="lbl">Amazon-Klicks heute</div></div>
+  </div>
+
+  <section style="margin-bottom:20px">
+    <h2>Live-Geschehen</h2>
+    <div class="scroll-x">
+    <table>
+      <thead><tr><th>Zeit</th><th>Typ</th><th>Wer</th><th>Was</th><th>Referrer</th></tr></thead>
+      <tbody id="live-body"><tr><td colspan="5" class="muted">Lade …</td></tr></tbody>
+    </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Statistik <span class="muted">(letzte <select id="sel-days"><option>7</option><option selected>14</option><option>30</option><option>90</option></select> Tage)</span>
+      <button class="secondary" id="btn-stats" style="float:right">Aktualisieren</button>
+    </h2>
+    <div class="cols">
+      <div>
+        <h3 style="margin:8px 0">LLM-Crawler <span class="muted" id="bot-total"></span></h3>
+        <div class="scroll-x">
+        <table>
+          <thead><tr><th>Bot</th><th>Zugriffe</th></tr></thead>
+          <tbody id="bot-body"><tr><td colspan="2" class="muted">Lade …</td></tr></tbody>
+        </table>
+        </div>
+        <p class="muted" id="bot-last"></p>
+        <h3 style="margin:8px 0">Meistgecrawlte Seiten</h3>
+        <div class="scroll-x">
+        <table>
+          <tbody id="botpath-body"><tr><td class="muted">–</td></tr></tbody>
+        </table>
+        </div>
+      </div>
+      <div>
+        <h3 style="margin:8px 0">Amazon-Klicks <span class="muted" id="click-total"></span></h3>
+        <div class="scroll-x">
+        <table>
+          <thead><tr><th>Kategorie / Produkt</th><th>Klicks</th></tr></thead>
+          <tbody id="click-body"><tr><td colspan="2" class="muted">Lade …</td></tr></tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="./admin-shared.js"></script>
+<script>
+$("nav").outerHTML = renderNav("statistik");
+
+const typeBadge = {
+  bot: '<span class="badge new">Bot</span>',
+  click: '<span class="badge covered">Klick</span>',
+  visit: '<span class="badge" style="background:#f1f5f9;color:#475569">Besuch</span>',
+};
+
+async function refreshLive() {
+  try {
+    const l = await api("/api/live?limit=80", { method: "GET" });
+    $("live-meta").textContent = "Stand " + l.generatedAt.slice(11, 19) + " UTC";
+
+    // Heute-Zähler aus dem Feed
+    const today = new Date().toISOString().slice(0, 10);
+    const todayEvents = l.events.filter((e) => e.ts.slice(0, 10) === today);
+    $("cnt-visits").textContent = todayEvents.filter((e) => e.type === "visit").length;
+    $("cnt-bots").textContent = todayEvents.filter((e) => e.type === "bot").length;
+    $("cnt-clicks").textContent = todayEvents.filter((e) => e.type === "click").length;
+
+    $("live-body").innerHTML = l.events.length ? l.events.map((e) => `
+      <tr>
+        <td style="white-space:nowrap">${esc(e.ts.slice(5, 16).replace("T", " "))}</td>
+        <td>${typeBadge[e.type] || esc(e.type)}</td>
+        <td>${esc(e.who)}</td>
+        <td>${esc(e.what)}${e.status && e.status >= 400 ? ` <span class="badge err">${e.status}</span>` : ""}</td>
+        <td class="muted" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.ref || "")}</td>
+      </tr>`).join("")
+      : '<tr><td colspan="5" class="muted">Noch keine Ereignisse.</td></tr>';
+  } catch (e) {
+    $("live-body").innerHTML = `<tr><td colspan="5" class="muted">Fehler: ${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function refreshStats() {
+  try {
+    const s = await api(`/api/stats?days=${$("sel-days").value}`, { method: "GET" });
+    $("bot-total").textContent = `· ${s.bots.total} Zugriffe`;
+    $("bot-body").innerHTML = s.bots.byBot.length
+      ? s.bots.byBot.map(([bot, n]) => `<tr><td>${esc(bot)}</td><td class="hits">${n}</td></tr>`).join("")
+      : '<tr><td colspan="2" class="muted">Noch keine LLM-Crawler-Zugriffe erfasst.</td></tr>';
+    $("bot-last").textContent = s.bots.last
+      ? `Zuletzt: ${s.bots.last.bot} → ${s.bots.last.uri} (${s.bots.last.at.slice(0, 16).replace("T", " ")})`
+      : "";
+    $("botpath-body").innerHTML = s.bots.topPaths.length
+      ? s.bots.topPaths.map(([p, n]) => `<tr><td>${esc(p)}</td><td class="hits">${n}</td></tr>`).join("")
+      : '<tr><td class="muted">–</td></tr>';
+    $("click-total").textContent = `· ${s.clicks.total} gesamt`;
+    $("click-body").innerHTML = s.clicks.topProducts.length
+      ? s.clicks.topProducts.map(([k, n]) => `<tr><td>${esc(k)}</td><td class="hits">${n}</td></tr>`).join("")
+      : '<tr><td colspan="2" class="muted">Noch keine Klicks erfasst.</td></tr>';
+  } catch (e) {
+    $("bot-body").innerHTML = `<tr><td colspan="2" class="muted">Fehler: ${esc(e.message)}</td></tr>`;
+  }
+}
+$("btn-stats").onclick = refreshStats;
+$("sel-days").onchange = refreshStats;
+
+setInterval(() => { if ($("chk-live").checked) refreshLive(); }, 5000);
+refreshLive();
+refreshStats();
+</script>
+</body>
+</html>
