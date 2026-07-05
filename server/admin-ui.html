@@ -158,9 +158,15 @@ async function refreshSuggestions() {
     if (i.draftSlug) return `<span class="badge draft">Entwurf</span>`;
     return '<span class="badge new">neu</span>';
   };
+  const trendMark = (i) => {
+    const arrow = i.delta > 0 ? ` <span class="trend up" title="+${i.delta} ggue. letztem Lauf">↑</span>`
+      : i.delta < 0 ? ` <span class="trend down" title="${i.delta} ggue. letztem Lauf">↓</span>` : "";
+    const hot = i.trending ? ' <span class="badge hot" title="gerade in den Google-Trends (DE)">🔥</span>' : "";
+    return arrow + hot;
+  };
   $("sug-body").innerHTML = items.length ? items.map(i => `
     <tr>
-      <td class="hits">${i.hits}</td>
+      <td class="hits">${i.hits}${trendMark(i)}</td>
       <td>${esc(i.term)}</td>
       <td>${statusBadge(i)}</td>
       <td style="white-space:nowrap">

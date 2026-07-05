@@ -97,9 +97,25 @@ async function startDiscovery() {
     const dismissed = new Set(
       prev.items.filter((i) => i.dismissed).map((i) => i.term)
     );
+    // Hit-Verlauf pro Begriff fortschreiben (max. 14 Tage) → Trend-Richtung
+    const prevByTerm = new Map(prev.items.map((i) => [i.term, i]));
+    const today = new Date().toISOString().slice(0, 10);
     await saveSuggestions({
       updatedAt: new Date().toISOString(),
-      items: items.map((i) => ({ ...i, dismissed: dismissed.has(i.term) })),
+      items: items.map((i) => {
+        const p = prevByTerm.get(i.term);
+        const history = (p?.history ?? [])
+          .filter((h) => h.date !== today)
+          .slice(-13);
+        history.push({ date: today, hits: i.hits });
+        const prevHits = history.length >= 2 ? history[history.length - 2].hits : null;
+        return {
+          ...i,
+          dismissed: dismissed.has(i.term),
+          history,
+          delta: prevHits == null ? null : i.hits - prevHits,
+        };
+      }),
     });
     state.discovery.progress = `fertig: ${items.length} Vorschläge`;
   } catch (e) {

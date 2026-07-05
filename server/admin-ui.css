@@ -31,6 +31,10 @@ th { border-top:0; color:#64748b; font-size:12px; text-transform:uppercase; lett
 .badge.draft { background:#fef3c7; color:#92400e; }
 a.badge.live { background:#166534; color:#fff; text-decoration:none; }
 .badge.err { background:#fee2e2; color:#b91c1c; }
+.badge.hot { background:#ffedd5; color:#c2410c; padding:2px 5px; }
+.trend { font-weight:700; }
+.trend.up { color:#16a34a; }
+.trend.down { color:#dc2626; }
 .muted { color:#94a3b8; font-size:13px; }
 .spinner { display:inline-block; width:12px; height:12px; border:2px solid #cbd5e1; border-top-color:var(--brand); border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; }
 @keyframes spin { to { transform:rotate(360deg);} }

@@ -8,6 +8,9 @@ import { ROOT } from "./env.mjs";
 const SUGGEST_URL = (q) =>
   `https://suggestqueries.google.com/complete/search?client=firefox&hl=de&q=${encodeURIComponent(q)}`;
 
+// Tägliche Google-Trends (DE) als RSS – zeigt, was heute wirklich hochkocht.
+const TRENDS_RSS = "https://trends.google.com/trending/rss?geo=DE";
+
 const HARVEST_PREFIXES = [
   "bester", "beste", "lohnt sich ein", "lohnt sich eine",
   "welcher", "welche", "test",
@@ -27,6 +30,21 @@ async function getSuggestions(query) {
     });
     const parsed = JSON.parse(await res.text());
     return Array.isArray(parsed?.[1]) ? parsed[1] : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Aktuelle DE-Trend-Suchbegriffe (Google Trends RSS). Leeres Array bei Fehler. */
+export async function fetchTrendingTerms() {
+  try {
+    const res = await fetch(TRENDS_RSS, {
+      headers: { "User-Agent": "Mozilla/5.0 (Macintosh) bookandbuy-discovery/1.0" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const xml = await res.text();
+    // Erster <title> ist der Feed-Titel selbst – überspringen.
+    return [...xml.matchAll(/<title>([^<]+)<\/title>/g)].map((m) => m[1]).slice(1);
   } catch {
     return [];
   }
@@ -101,8 +119,18 @@ export async function runDiscovery(onProgress = () => {}) {
   }
 
   const cats = await existingCategories();
+  onProgress("Google-Trends abrufen …");
+  const trendTerms = (await fetchTrendingTerms()).map(norm).filter(Boolean);
+  const isTrending = (term) => {
+    const t = norm(term);
+    return trendTerms.some((tr) => tr.includes(t) || t.includes(tr));
+  };
   return [...counts.entries()]
     .filter(([, n]) => n >= 2) // mind. 2 Präfix-Treffer = echte Nachfrage
     .sort((a, b) => b[1] - a[1])
-    .map(([term, hits]) => ({ term, hits, covered: isCovered(term, cats) }));
+    .map(([term, hits]) => ({
+      term, hits,
+      covered: isCovered(term, cats),
+      trending: isTrending(term),
+    }));
 }
