@@ -1,18 +1,20 @@
 import type { Category, Product } from "./categories";
-import { SITE, amazonProductUrl } from "../config/site";
+import { SITE, productBuyUrl, productImageUrl } from "../config/site";
 
 export function productJsonLd(p: Product, category: Category) {
+  const image = productImageUrl(p);
   return {
     "@type": "Product",
     name: p.name,
     brand: { "@type": "Brand", name: p.brand },
     description: p.verdict,
+    ...(image ? { image } : {}),
     offers: {
       "@type": "Offer",
       price: p.price.value,
       priceCurrency: p.price.currency,
       availability: "https://schema.org/InStock",
-      url: amazonProductUrl(p.asin),
+      url: productBuyUrl(p),
       priceValidUntil: p.price.checkedAt,
     },
     url: `${SITE.domain}/${category.slug}/#${p.id}`,

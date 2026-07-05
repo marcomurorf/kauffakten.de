@@ -10,14 +10,21 @@ const categories = getAllCategories();
   title={`${SITE.name} – täglich geprüfte Produktdaten mit Datum`}
   description={SITE.description}
 >
-  <h1 class="mb-3 text-3xl font-bold">
-    Produktdaten mit Prüfdatum – täglich automatisch aktualisiert
-  </h1>
-  <p class="mb-8 max-w-2xl text-lg text-slate-600">
-    Jede Zahl auf dieser Seite trägt ein Prüfdatum. Preise und Spezifikationen
-    werden täglich automatisch kontrolliert – lesbar für Menschen und als
-    offene JSON-Feeds für Maschinen.
-  </p>
+  <div class="mb-12 text-center sm:py-6">
+    <p class="mb-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-4 py-1.5 text-xs font-semibold text-emerald-800">
+      <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+      Täglich automatisch geprüft
+    </p>
+    <h1 class="mx-auto mb-4 max-w-3xl text-3xl font-bold tracking-tight sm:text-5xl">
+      Produktdaten mit Prüfdatum –<br class="hidden sm:block" />
+      <span class="text-brand-600">keine Meinungen, nur Fakten.</span>
+    </h1>
+    <p class="mx-auto max-w-2xl text-lg leading-relaxed text-slate-600">
+      Jede Zahl auf dieser Seite trägt ein Prüfdatum. Preise und Spezifikationen
+      werden täglich automatisch kontrolliert – lesbar für Menschen und als
+      offene JSON-Feeds für Maschinen.
+    </p>
+  </div>
 
   <h2 class="mb-4 text-xl font-semibold">Kategorien</h2>
   <div class="grid gap-4 sm:grid-cols-2">
@@ -25,12 +32,13 @@ const categories = getAllCategories();
       categories.map((c) => (
         <a
           href={`/${c.slug}/`}
-          class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-brand-500 hover:shadow"
+          class="group rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md"
         >
-          <h3 class="mb-1 text-lg font-semibold text-brand-700">{c.name}</h3>
-          <p class="mb-2 text-sm text-slate-600">{c.intro.slice(0, 120)}…</p>
-          <p class="text-xs text-slate-400">
-            {c.products.length} Produkte · Stand: {c.updatedAt}
+          <h3 class="mb-1.5 text-lg font-bold text-brand-700 group-hover:text-brand-600">{c.name} →</h3>
+          <p class="mb-3 text-sm leading-relaxed text-slate-600">{c.intro.slice(0, 120)}…</p>
+          <p class="flex items-center gap-2 text-xs text-slate-400">
+            <span class="rounded-full bg-slate-100 px-2 py-0.5">{c.products.length} Produkte</span>
+            <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-emerald-700">Stand: {c.updatedAt}</span>
           </p>
         </a>
       ))

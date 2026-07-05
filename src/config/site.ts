@@ -21,14 +21,28 @@ export function amazonProductUrl(asin: string): string {
   return `https://www.amazon.de/dp/${asin}?tag=${AMAZON_TAG}`;
 }
 
-/** Produktbild über das offizielle Amazon-Associates-Widget (per ASIN). */
-export function amazonImageUrl(asin: string, size = "_SL500_"): string {
-  return `https://ws-eu.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN=${asin}&Format=${size}&ID=AsinImage&MarketPlace=DE&ServiceVersion=20070822&WS=1&tag=${AMAZON_TAG}`;
+/** Produktbild per ASIN über den Amazon-Bilder-CDN.
+ *  Ungültige ASINs liefern ein 1×1-Platzhalter-GIF (43 Bytes). */
+export function amazonImageUrl(asin: string, size = "SL500"): string {
+  return `https://images-eu.ssl-images-amazon.com/images/P/${asin}.03._${size}_.jpg`;
 }
 
-/** Bild eines Produkts: explizites image-Feld gewinnt, sonst Amazon-Widget. */
+/** Amazon-Suchlink (Affiliate) – Fallback, wenn keine gültige ASIN vorliegt. */
+export function amazonSearchUrl(query: string): string {
+  return `https://www.amazon.de/s?k=${encodeURIComponent(query)}&tag=${AMAZON_TAG}`;
+}
+
+/** Bild eines Produkts: explizites image-Feld gewinnt, sonst Amazon-CDN. */
 export function productImageUrl(p: { asin?: string; image?: string }): string | null {
   if (p.image) return p.image;
   if (p.asin) return amazonImageUrl(p.asin);
   return null;
+}
+
+/** Kauf-Link: Produktseite bei gültiger ASIN, sonst Affiliate-Suchlink. */
+export function productBuyUrl(p: { asin?: string; name: string; brand?: string }): string {
+  if (p.asin) return amazonProductUrl(p.asin);
+  const brand =
+    p.brand && !p.name.toLowerCase().includes(p.brand.toLowerCase()) ? `${p.brand} ` : "";
+  return amazonSearchUrl(`${brand}${p.name}`.trim());
 }

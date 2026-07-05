@@ -132,6 +132,7 @@
   </div>
   <div class="dlg-foot">
     <button class="danger" id="dlg-reject">Verwerfen</button>
+    <button class="secondary" id="dlg-verify">ASINs prüfen</button>
     <button class="secondary" id="dlg-save">Speichern</button>
     <button id="dlg-approve">Freigeben → geht live</button>
   </div>
@@ -153,11 +154,17 @@ const api = async (path, opts) => {
 let currentSlug = null;
 const dlg = $("dlg");
 
-// ---- Produkt-Vorschau (Bilder via Amazon-Widget anhand der ASIN) ----
+// ---- Produkt-Vorschau (Bilder via Amazon-Bilder-CDN anhand der ASIN) ----
 const AMAZON_TAG = "smarteshome-21";
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const asinImg = (asin) =>
-  `https://ws-eu.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN=${encodeURIComponent(asin)}&Format=_SL250_&ID=AsinImage&MarketPlace=DE&ServiceVersion=20070822&WS=1&tag=${AMAZON_TAG}`;
+  `https://images-eu.ssl-images-amazon.com/images/P/${encodeURIComponent(asin)}.03._SL250_.jpg`;
+const prodImg = (p) => p.image || (p.asin ? asinImg(p.asin) : null);
+const asinBadge = (p) => {
+  if (!p.asinStatus) return "";
+  const cls = p.asinStatus === "ok" ? "covered" : p.asinStatus === "korrigiert" ? "covered" : "new";
+  return ` <span class="badge ${cls}" title="geprüft ${esc(p.asinCheckedAt || "")}">ASIN ${esc(p.asinStatus)}</span>`;
+};
 
 function renderPreview() {
   let d;
@@ -166,12 +173,12 @@ function renderPreview() {
   $("prev-fazit").textContent = d.fazit || d.intro || "";
   $("prev-cards").innerHTML = (d.products || []).map((p) => `
     <div class="pcard">
-      <div class="imgbox">${p.asin
-        ? `<img src="${asinImg(p.asin)}" alt="" loading="lazy" onerror="this.parentNode.innerHTML='<span class=noimg>kein Bild (ASIN prüfen)</span>'">`
+      <div class="imgbox">${prodImg(p)
+        ? `<img src="${esc(prodImg(p))}" alt="" loading="lazy" onerror="this.parentNode.innerHTML='<span class=noimg>kein Bild (ASIN prüfen)</span>'">`
         : '<span class="noimg">keine ASIN</span>'}</div>
       <div class="pname">${esc(p.name)}</div>
       <div class="pmeta">${esc(p.brand || "")} · <span class="pprice">${p.price?.value ?? "?"} €</span>
-        ${p.asin ? `· <a href="https://www.amazon.de/dp/${esc(p.asin)}?tag=${AMAZON_TAG}" target="_blank" rel="noopener">${esc(p.asin)}</a>` : '· <span class="badge new">ASIN fehlt</span>'}</div>
+        ${p.asin ? `· <a href="https://www.amazon.de/dp/${esc(p.asin)}?tag=${AMAZON_TAG}" target="_blank" rel="noopener">${esc(p.asin)}</a>` : '· <span class="badge new">ASIN fehlt</span>'}${asinBadge(p)}</div>
       ${p.pros?.length ? `<ul class="plist">${p.pros.slice(0, 2).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
       ${p.cons?.length ? `<ul class="plist cons">${p.cons.slice(0, 1).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
     </div>`).join("") || '<p class="muted">Keine Produkte im Entwurf.</p>';
@@ -304,6 +311,23 @@ $("dlg-save").onclick = async () => {
     await api("/api/drafts/" + currentSlug, { method: "PUT", body: data });
     alert("Gespeichert.");
   } catch (err) { alert("Fehler: " + err.message); }
+};
+
+$("dlg-verify").onclick = async () => {
+  const btn = $("dlg-verify");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> prüfe …';
+  try {
+    // erst aktuellen JSON-Stand speichern, dann serverseitig verifizieren
+    const data = JSON.parse($("dlg-json").value);
+    await api("/api/drafts/" + currentSlug, { method: "PUT", body: data });
+    const r = await api(`/api/drafts/${currentSlug}/verify`, { body: {} });
+    const draft = await api("/api/drafts/" + currentSlug, { method: "GET" });
+    $("dlg-json").value = JSON.stringify(draft, null, 2);
+    renderPreview();
+    alert("ASIN-Prüfung:\n" + r.report.map((e) =>
+      `• ${e.name}: ${e.status}${e.fixedFrom ? ` (${e.fixedFrom || "leer"} → ${e.asin})` : ""}`).join("\n"));
+  } catch (err) { alert("Fehler: " + err.message); }
+  btn.disabled = false; btn.textContent = "ASINs prüfen";
 };
 
 $("dlg-approve").onclick = async () => {

@@ -11,7 +11,7 @@
 // Nur ein Node-Prozess, keine Framework-Dependencies.
 
 import { createServer } from "node:http";
-import { readFile, writeFile, mkdir, appendFile, open, stat } from "node:fs/promises";
+import { readFile, writeFile, mkdir, appendFile, open, stat, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -22,12 +22,14 @@ import {
   approveDraft, rejectDraft,
 } from "./lib/generator.mjs";
 import { llmConfigured } from "./lib/llm.mjs";
+import { verifyProducts } from "./lib/asin.mjs";
 
 loadEnv();
 
 const PORT = Number(process.env.ADMIN_PORT || 5177);
 const HOST = process.env.ADMIN_HOST || "127.0.0.1";
 const SUGGESTIONS_FILE = join(ROOT, "data", "suggestions.json");
+const CATEGORIES_DIR = join(ROOT, "data", "categories");
 const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------- Zustand
@@ -76,6 +78,38 @@ async function startDiscovery() {
   }
 }
 
+// ------------------------------------------------- IndexNow (Bing & Co.)
+const INDEXNOW_KEY = "3b578052369d459bafdf74ec7773ea69";
+const SITE_URL = "https://www.bookandbuy.de";
+
+async function notifyIndexNow() {
+  try {
+    const files = await readdir(CATEGORIES_DIR).catch(() => []);
+    const urlList = [
+      `${SITE_URL}/`,
+      ...files
+        .filter((f) => f.endsWith(".json"))
+        .flatMap((f) => {
+          const slug = f.replace(/\.json$/, "");
+          return [`${SITE_URL}/${slug}/`, `${SITE_URL}/daten/${slug}.json`];
+        }),
+    ];
+    await fetch("https://api.indexnow.org/indexnow", {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({
+        host: "www.bookandbuy.de",
+        key: INDEXNOW_KEY,
+        keyLocation: `${SITE_URL}/${INDEXNOW_KEY}.txt`,
+        urlList,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    /* nicht kritisch */
+  }
+}
+
 // ------------------------------------------------------- Publish (Build)
 async function runPublish() {
   if (state.publish.running) return;
@@ -88,6 +122,7 @@ async function runPublish() {
     );
     state.publish.ok = true;
     state.publish.output = (stdout + stderr).split("\n").slice(-6).join("\n");
+    notifyIndexNow(); // Suchmaschinen (Bing & Co.) über neue Inhalte informieren
   } catch (e) {
     state.publish.ok = false;
     state.publish.output = String(e.message).slice(0, 800);
@@ -387,6 +422,19 @@ const server = createServer(async (req, res) => {
       const slug = path.split("/")[3];
       await rejectDraft(slug);
       return json(res, 200, { ok: true });
+    }
+
+    // --- ASIN-Verifikation (Entwurf oder Live-Kategorie) ---
+    if (req.method === "POST" && /^\/api\/(drafts|categories)\/[^/]+\/verify$/.test(path)) {
+      const [, , kind, slug] = path.split("/");
+      const dir = kind === "drafts" ? "drafts" : "categories";
+      const file = join(ROOT, "data", dir, `${slug}.json`);
+      const data = JSON.parse(await readFile(file, "utf8"));
+      const report = await verifyProducts(data.products);
+      data.asinReport = report;
+      await writeFile(file, JSON.stringify(data, null, 2), "utf8");
+      if (kind === "categories") runPublish(); // Live-Daten geändert → neu bauen
+      return json(res, 200, { ok: true, report });
     }
 
     json(res, 404, { error: "not found" });

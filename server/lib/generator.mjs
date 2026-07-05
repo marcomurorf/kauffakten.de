@@ -7,6 +7,7 @@ import { readFile, writeFile, mkdir, readdir, rename, unlink } from "node:fs/pro
 import { join } from "node:path";
 import { chat } from "./llm.mjs";
 import { ROOT } from "./env.mjs";
+import { verifyProducts } from "./asin.mjs";
 
 const DRAFTS_DIR = join(ROOT, "data", "drafts");
 const CATEGORIES_DIR = join(ROOT, "data", "categories");
@@ -61,6 +62,14 @@ export async function generateDraft(term) {
   for (const p of draft.products) {
     p.price.checkedAt = today;
     p.price.currency = "EUR";
+  }
+
+  // ASIN-Verifikation: LLM-ASINs prüfen, ungültige per Amazon-Suche
+  // korrigieren (setzt asin, image, asinStatus je Produkt).
+  try {
+    draft.asinReport = await verifyProducts(draft.products);
+  } catch (e) {
+    draft.asinReport = [{ name: "*", status: `Verifikation fehlgeschlagen: ${e.message}` }];
   }
 
   await mkdir(DRAFTS_DIR, { recursive: true });
