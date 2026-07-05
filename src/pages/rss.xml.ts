@@ -17,6 +17,9 @@ export const GET: APIRoute = () => {
 
   const items = categories.map((c) => {
     const url = `${SITE.domain}/${c.slug}/`;
+    const baseName =
+      c.name.replace(/\s*(im\s+)?Vergleich(\s+\d{4})?\s*$/i, "").trim() ||
+      c.name;
     const cheapest = c.products.reduce((min, p) =>
       p.price.value < min.price.value ? p : min
     );
@@ -25,7 +28,7 @@ export const GET: APIRoute = () => {
       c.intro;
     return [
       `    <item>`,
-      `      <title>${esc(c.name)} – Vergleich (Stand: ${c.updatedAt})</title>`,
+      `      <title>${esc(baseName)} – Vergleich (Stand: ${c.updatedAt})</title>`,
       `      <link>${url}</link>`,
       `      <guid isPermaLink="false">${url}#${c.updatedAt}</guid>`,
       `      <pubDate>${new Date(`${c.updatedAt}T06:00:00+02:00`).toUTCString()}</pubDate>`,
