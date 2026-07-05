@@ -30,6 +30,7 @@ const PORT = Number(process.env.ADMIN_PORT || 5177);
 const HOST = process.env.ADMIN_HOST || "127.0.0.1";
 const SUGGESTIONS_FILE = join(ROOT, "data", "suggestions.json");
 const SETTINGS_FILE = join(ROOT, "data", "settings.json");
+const DRAFT_LOG_FILE = join(ROOT, "data", "draft-log.json");
 const CATEGORIES_DIR = join(ROOT, "data", "categories");
 const execFileAsync = promisify(execFile);
 
@@ -48,6 +49,7 @@ const state = {
   generating: new Set(), // Begriffe, für die gerade ein Entwurf erzeugt wird
   publish: { running: false, ok: null, output: "", finishedAt: null },
   autoDrafting: false,
+  bulkDraft: { running: false, progress: "", done: 0, total: 0, errors: 0 },
   recheck: {
     running: false, progress: "", nextAt: null,
     lastFinishedAt: null, lastSummary: "",
@@ -148,7 +150,12 @@ async function runPublish() {
     const { stdout, stderr } = await execFileAsync(
       process.execPath,
       [join(ROOT, "node_modules", "astro", "astro.js"), "build"],
-      { cwd: ROOT, timeout: 5 * 60 * 1000, maxBuffer: 10 * 1024 * 1024 }
+      {
+        cwd: ROOT, timeout: 5 * 60 * 1000, maxBuffer: 10 * 1024 * 1024,
+        // Telemetry will nach ~/.config schreiben → scheitert an der
+        // systemd-Sandbox (ProtectHome). Deshalb hart deaktivieren.
+        env: { ...process.env, ASTRO_TELEMETRY_DISABLED: "1" },
+      }
     );
     state.publish.ok = true;
     state.publish.output = (stdout + stderr).split("\n").slice(-6).join("\n");
@@ -163,34 +170,127 @@ async function runPublish() {
 }
 
 // ------------------------------------- Auto-Pilot (täglicher Scheduler)
-// Läuft jede Nacht: Discovery → für die Top-N neuen Begriffe automatisch
-// LLM-Entwürfe erzeugen. Veröffentlichung bleibt manuell (Review-Gate).
+// Läuft jede Nacht: NUR Discovery (Vorschläge sammeln). Entwürfe werden
+// ausschließlich manuell erzeugt – mit 24h-Drossel pro Begriff.
 const AUTO_HOUR = Number(process.env.AUTO_HOUR ?? 5); // 05:00 Serverzeit
-const AUTO_DRAFT_LIMIT = Number(process.env.AUTO_DRAFT_LIMIT ?? 3);
 
-async function autoDraftTopSuggestions() {
-  if (!llmConfigured() || state.autoDrafting) return;
-  state.autoDrafting = true;
+// Lädt Kurz-Infos aller Live-Kategorien (für den dynamischen Abgleich
+// der Vorschlagsliste – der „covered“-Flag aus der Discovery veraltet,
+// sobald danach neue Kategorien live gehen).
+async function loadLiveCategories() {
+  const files = (await readdir(CATEGORIES_DIR).catch(() => [])).filter((f) => f.endsWith(".json"));
+  const cats = [];
+  for (const f of files) {
+    try {
+      const d = JSON.parse(await readFile(join(CATEGORIES_DIR, f), "utf8"));
+      cats.push({ slug: d.slug, name: d.name || "", terms: d.terms || [] });
+    } catch { /* defekte Datei ignorieren */ }
+  }
+  return cats;
+}
+
+// Normalisiert Begriffe/Namen/Slugs für unscharfes Matching:
+// Kleinschreibung, Umlaute transliteriert (ö→oe …), Rest zu Bindestrichen.
+// Wichtig: Live-Slugs sind ASCII („in-ear-kopfhoerer“), Suchbegriffe nicht
+// („in ear kopfhörer“) – ohne Transliteration matcht das nie.
+function normTerm(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+// Ordnet einem Suchbegriff eine evtl. vorhandene Live-Kategorie zu
+// (gleiche unscharfe Logik wie isCovered in der Discovery).
+function findLiveForTerm(term, cats) {
+  const g = normTerm(term);
+  if (!g) return null;
+  return (
+    cats.find((c) => {
+      const slug = normTerm(c.slug);
+      const name = normTerm(c.name);
+      return (
+        slug.includes(g) ||
+        g.includes(slug) ||
+        (name && (name.includes(g) || g.includes(name))) ||
+        c.terms.some((x) => {
+          const nx = normTerm(x);
+          return nx && (nx.includes(g) || g.includes(nx));
+        })
+      );
+    }) || null
+  );
+}
+
+// Ordnet einem Suchbegriff einen evtl. vorhandenen Entwurf zu.
+// Exakt über sourceTerm, sonst unscharf über den Slug (Alt-Entwürfe).
+function findDraftForTerm(term, drafts) {
+  const t = term.toLowerCase();
+  const exact = drafts.find((d) => (d.sourceTerm || "").toLowerCase() === t);
+  if (exact) return exact;
+  const g = normTerm(term);
+  if (!g) return null;
+  return drafts.find((d) => d.slug.includes(g) || g.includes(d.slug)) || null;
+}
+
+// ------------------------- Draft-Log: max. 1 Entwurf pro Begriff pro 24 h
+// Verhindert, dass Bulk/Auto-Läufe denselben Begriff mehrfach am Tag
+// generieren (Kosten + Durcheinander). Manuelles Erzeugen bleibt erlaubt,
+// wird aber ebenfalls protokolliert.
+async function loadDraftLog() {
   try {
-    const data = await loadSuggestions();
-    const drafts = await listDrafts();
-    const draftSlugs = new Set(drafts.map((d) => d.slug));
-    const candidates = data.items
-      .filter((i) => !i.covered && !i.dismissed)
-      .sort((a, b) => b.hits - a.hits)
-      .slice(0, AUTO_DRAFT_LIMIT);
-    for (const c of candidates) {
-      const slugGuess = c.term.toLowerCase().replace(/[^a-z0-9äöüß]+/g, "-");
-      if ([...draftSlugs].some((s) => s.includes(slugGuess) || slugGuess.includes(s))) continue;
+    return JSON.parse(await readFile(DRAFT_LOG_FILE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+async function markDrafted(term) {
+  const log = await loadDraftLog();
+  log[term.toLowerCase()] = new Date().toISOString();
+  await writeFile(DRAFT_LOG_FILE, JSON.stringify(log, null, 2), "utf8");
+}
+function draftedRecently(log, term) {
+  const at = log[term.toLowerCase()];
+  return at && Date.now() - Date.parse(at) < 24 * 60 * 60 * 1000;
+}
+
+// Bulk-Generierung (NUR manuell per Button): für alle offenen Vorschläge
+// (nicht live, nicht verworfen, ohne Entwurf, heute noch nicht generiert)
+// sequenziell Entwürfe erzeugen.
+async function runBulkDrafts() {
+  if (!llmConfigured() || state.bulkDraft.running) return;
+  const data = await loadSuggestions();
+  const drafts = await listDrafts();
+  const live = await loadLiveCategories();
+  const log = await loadDraftLog();
+  const todo = data.items
+    .filter(
+      (i) =>
+        !i.covered &&
+        !i.dismissed &&
+        !findLiveForTerm(i.term, live) && // schon live → kein Duplikat erzeugen
+        !findDraftForTerm(i.term, drafts) &&
+        !draftedRecently(log, i.term) // 24h-Drossel
+    )
+    .sort((a, b) => b.hits - a.hits);
+  state.bulkDraft = { running: true, progress: "", done: 0, total: todo.length, errors: 0 };
+  try {
+    for (const c of todo) {
+      state.bulkDraft.progress = `${state.bulkDraft.done + 1}/${todo.length}: ${c.term}`;
+      await markDrafted(c.term); // auch bei Fehlern nicht am selben Tag erneut
       try {
         const draft = await generateDraft(c.term);
-        console.log(`[auto] Entwurf erzeugt: ${draft.slug}`);
+        console.log(`[bulk] Entwurf erzeugt: ${draft.slug}`);
       } catch (e) {
-        console.error(`[auto] Entwurf fehlgeschlagen (${c.term}): ${e.message}`);
+        state.bulkDraft.errors++;
+        console.error(`[bulk] Entwurf fehlgeschlagen (${c.term}): ${e.message}`);
       }
+      state.bulkDraft.done++;
     }
+    state.bulkDraft.progress = `fertig: ${state.bulkDraft.done} Entwürfe, ${state.bulkDraft.errors} Fehler`;
   } finally {
-    state.autoDrafting = false;
+    state.bulkDraft.running = false;
   }
 }
 
@@ -201,9 +301,10 @@ function scheduleAutoPilot() {
   if (next <= now) next.setDate(next.getDate() + 1);
   const ms = next - now;
   setTimeout(async () => {
-    console.log("[auto] Nächtlicher Lauf: Discovery + Entwürfe");
+    // Nur Discovery – Entwürfe werden bewusst NICHT mehr automatisch
+    // erzeugt (nur manuell per Button, mit 24h-Drossel pro Begriff).
+    console.log("[auto] Nächtlicher Lauf: Discovery");
     await startDiscovery();
-    await autoDraftTopSuggestions();
     scheduleAutoPilot();
   }, ms);
   console.log(`[auto] Nächster automatischer Lauf: ${next.toISOString()}`);
@@ -539,6 +640,7 @@ const server = createServer(async (req, res) => {
         generating: [...state.generating],
         publish: state.publish,
         autoDrafting: state.autoDrafting,
+        bulkDraft: state.bulkDraft,
         suggestionsUpdatedAt: suggestions.updatedAt,
         suggestionCount: suggestions.items.filter((i) => !i.covered && !i.dismissed).length,
         draftCount: drafts.length,
@@ -557,7 +659,17 @@ const server = createServer(async (req, res) => {
       return json(res, 202, { started: true });
     }
     if (req.method === "GET" && path === "/api/suggestions") {
-      return json(res, 200, await loadSuggestions());
+      const data = await loadSuggestions();
+      const drafts = await listDrafts();
+      const live = await loadLiveCategories();
+      // Live-/Entwurf-Zuordnung für die UI – dynamisch statt des veralteten
+      // covered-Flags aus dem Discovery-Lauf (verhindert doppelte Einträge).
+      data.items = data.items.map((i) => {
+        const l = findLiveForTerm(i.term, live);
+        const d = findDraftForTerm(i.term, drafts);
+        return { ...i, liveSlug: l ? l.slug : null, draftSlug: d ? d.slug : null };
+      });
+      return json(res, 200, data);
     }
     if (req.method === "POST" && path === "/api/suggestions/dismiss") {
       const { term } = await readBody(req);
@@ -569,13 +681,32 @@ const server = createServer(async (req, res) => {
     }
 
     // --- Generierung ---
+    if (req.method === "POST" && path === "/api/generate/all") {
+      if (state.bulkDraft.running)
+        return json(res, 409, { error: "Bulk-Generierung läuft bereits" });
+      runBulkDrafts(); // Hintergrund; Fortschritt via /api/status
+      return json(res, 202, { started: true });
+    }
     if (req.method === "POST" && path === "/api/generate") {
       const { term } = await readBody(req);
       if (!term) return json(res, 400, { error: "term fehlt" });
       if (state.generating.has(term))
         return json(res, 409, { error: "läuft bereits" });
+      // Duplikat-Schutz: nie einen zweiten Entwurf zu etwas erzeugen,
+      // das schon live ist oder bereits als Entwurf wartet.
+      const liveHit = findLiveForTerm(term, await loadLiveCategories());
+      if (liveHit)
+        return json(res, 409, {
+          error: `„${term}“ ist bereits live als /${liveHit.slug}/ – dort „Neu einlesen“ nutzen statt neu anzulegen.`,
+        });
+      const draftHit = findDraftForTerm(term, await listDrafts());
+      if (draftHit)
+        return json(res, 409, {
+          error: `Zu „${term}“ wartet schon der Entwurf „${draftHit.slug}“ auf Review.`,
+        });
       state.generating.add(term);
       try {
+        await markDrafted(term); // 24h-Drossel-Log (manuell zählt auch)
         const draft = await generateDraft(term);
         return json(res, 200, { ok: true, slug: draft.slug });
       } finally {
@@ -599,6 +730,18 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === "POST" && path.startsWith("/api/drafts/") && path.endsWith("/approve")) {
       const slug = safeSlug(path.split("/")[3]);
+      // Duplikat-Schutz: Entwurf würde eine zweite Live-Seite neben einer
+      // bestehenden erzeugen (anderer Slug, aber gleiches Thema).
+      // Gleicher Slug = bewusstes Ersetzen (Regenerieren) → erlaubt.
+      const liveDup = findLiveForTerm(slug, await loadLiveCategories());
+      if (liveDup && liveDup.slug !== slug) {
+        const { force } = await readBody(req).catch(() => ({}));
+        if (!force)
+          return json(res, 409, {
+            error: `Würde ein Duplikat zu /${liveDup.slug}/ erzeugen. Entwurf verwerfen – oder Freigabe wiederholen, um es trotzdem zu tun.`,
+            duplicateOf: liveDup.slug,
+          });
+      }
       await approveDraft(slug);
       runPublish(); // Freigabe stößt automatisch den Live-Build an
       return json(res, 200, { ok: true, publishing: true });

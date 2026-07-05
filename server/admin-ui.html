@@ -21,7 +21,9 @@
       <h2>Vorschläge <span class="muted" id="sug-meta"></span></h2>
       <div class="toolbar">
         <button id="btn-discover">Discovery starten</button>
-        <label class="muted"><input type="checkbox" id="chk-covered"> abgedeckte zeigen</label>
+        <button class="secondary" id="btn-gen-all">Für alle Entwürfe erzeugen</button>
+        <label class="muted"><input type="checkbox" id="chk-covered"> live/abgedeckte zeigen</label>
+        <span class="status" id="bulk-status"></span>
       </div>
       <div class="scroll-x">
       <table>
@@ -33,6 +35,10 @@
 
     <section>
       <h2>Entwürfe (Review nötig)</h2>
+      <div class="toolbar">
+        <input type="text" id="inp-term" placeholder="Beliebiger Suchbegriff …" style="flex:1;min-width:160px">
+        <button id="btn-gen-term">Entwurf erzeugen</button>
+      </div>
       <div class="warn">Entwürfe kommen vom LLM. Preise/ASINs vor Freigabe prüfen — leere ASIN = LLM war unsicher.</div>
       <div class="scroll-x">
       <table>
@@ -42,6 +48,17 @@
       </div>
     </section>
   </div>
+
+  <section style="margin-top:20px">
+    <h2>Live-Kategorien <span class="muted" id="live-meta"></span></h2>
+    <div class="scroll-x">
+    <table>
+      <thead><tr><th>Kategorie</th><th>Permalink</th><th>Stand</th><th>Produkte</th><th></th></tr></thead>
+      <tbody id="live-body"><tr><td colspan="5" class="muted">Lade …</td></tr></tbody>
+    </table>
+    </div>
+    <p class="muted">„Neu einlesen“ holt frische Amazon-Daten und erzeugt einen Entwurf zum Review – der Permalink bleibt gleich, die Live-Seite ändert sich erst nach Freigabe. Details unter <a href="./produkte">Produkte</a>.</p>
+  </section>
 </main>
 
 <dialog id="dlg">
@@ -120,6 +137,11 @@ async function refreshStatus() {
     ? '<span class="spinner"></span> ' + esc(d.progress)
     : esc(d.progress || "");
   $("btn-discover").disabled = d.running;
+  const b = s.bulkDraft || {};
+  $("bulk-status").innerHTML = b.running
+    ? '<span class="spinner"></span> ' + esc(b.progress)
+    : esc(b.progress || "");
+  $("btn-gen-all").disabled = !!b.running;
   return s;
 }
 
@@ -128,14 +150,23 @@ async function refreshSuggestions() {
   $("sug-meta").textContent = data.updatedAt
     ? "· Stand " + data.updatedAt.slice(0, 16).replace("T", " ") : "";
   const showCovered = $("chk-covered").checked;
-  const items = data.items.filter(i => !i.dismissed && (showCovered || !i.covered));
+  const isDone = (i) => i.covered || i.liveSlug; // live/abgedeckt = erledigt
+  const items = data.items.filter(i => !i.dismissed && (showCovered || !isDone(i)));
+  const statusBadge = (i) => {
+    if (i.liveSlug) return `<a class="badge live" href="https://www.bookandbuy.de/${esc(i.liveSlug)}/" target="_blank" rel="noopener">live ↗</a>`;
+    if (i.covered) return '<span class="badge covered">abgedeckt</span>';
+    if (i.draftSlug) return `<span class="badge draft">Entwurf</span>`;
+    return '<span class="badge new">neu</span>';
+  };
   $("sug-body").innerHTML = items.length ? items.map(i => `
     <tr>
       <td class="hits">${i.hits}</td>
       <td>${esc(i.term)}</td>
-      <td>${i.covered ? '<span class="badge covered">abgedeckt</span>' : '<span class="badge new">neu</span>'}</td>
+      <td>${statusBadge(i)}</td>
       <td style="white-space:nowrap">
-        ${i.covered ? "" : `<button data-gen="${esc(i.term)}">Entwurf erzeugen</button>`}
+        ${isDone(i) ? "" : i.draftSlug
+          ? `<button class="secondary" data-review="${esc(i.draftSlug)}">Review</button>`
+          : `<button data-gen="${esc(i.term)}">Entwurf erzeugen</button>`}
         <button class="secondary" data-dismiss="${esc(i.term)}">✕</button>
       </td>
     </tr>`).join("")
@@ -153,14 +184,52 @@ async function refreshDrafts() {
     : '<tr><td colspan="3" class="muted">Keine offenen Entwürfe.</td></tr>';
 }
 
+async function refreshLive() {
+  try {
+    const cats = await api("/api/categories");
+    $("live-meta").textContent = cats.length ? `· ${cats.length} live` : "";
+    $("live-body").innerHTML = cats.length ? cats.map(c => `
+      <tr>
+        <td><strong>${esc(c.name)}</strong></td>
+        <td><a href="https://www.bookandbuy.de/${esc(c.slug)}/" target="_blank" rel="noopener">/${esc(c.slug)}/ ↗</a></td>
+        <td>${esc(c.updatedAt || "?")}</td>
+        <td>${c.products}${c.missingAsin ? ` <span class="badge err">${c.missingAsin}× ASIN fehlt</span>` : ""}</td>
+        <td><button class="secondary" data-regen="${esc(c.slug)}">Neu einlesen</button></td>
+      </tr>`).join("")
+      : '<tr><td colspan="5" class="muted">Keine Live-Kategorien.</td></tr>';
+  } catch (e) {
+    $("live-body").innerHTML = `<tr><td colspan="5" class="muted">Fehler: ${esc(e.message)}</td></tr>`;
+  }
+}
+
 async function refreshAll() {
-  await Promise.all([refreshStatus(), refreshSuggestions(), refreshDrafts()]);
+  await Promise.all([refreshStatus(), refreshSuggestions(), refreshDrafts(), refreshLive()]);
 }
 
 $("btn-discover").onclick = async () => {
   await api("/api/discovery/run", { body: {} });
   poll();
 };
+
+$("btn-gen-all").onclick = async () => {
+  if (!confirm("Für ALLE offenen Vorschläge Entwürfe erzeugen? Das dauert (LLM + Amazon-Suche pro Begriff) und läuft im Hintergrund.")) return;
+  await api("/api/generate/all", { body: {} });
+  poll();
+};
+
+$("btn-gen-term").onclick = async () => {
+  const term = $("inp-term").value.trim();
+  if (!term) return $("inp-term").focus();
+  const btn = $("btn-gen-term");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> generiere …';
+  try {
+    await api("/api/generate", { body: { term } });
+    $("inp-term").value = "";
+    await refreshAll();
+  } catch (err) { alert("Fehler: " + err.message); }
+  btn.disabled = false; btn.textContent = "Entwurf erzeugen";
+};
+$("inp-term").addEventListener("keydown", (e) => { if (e.key === "Enter") $("btn-gen-term").click(); });
 wirePublishButton(refreshAll);
 $("chk-covered").onchange = refreshSuggestions;
 
@@ -176,6 +245,16 @@ document.body.addEventListener("click", async (e) => {
   if (t.dataset.dismiss) {
     await api("/api/suggestions/dismiss", { body: { term: t.dataset.dismiss } });
     refreshSuggestions();
+  }
+  if (t.dataset.regen) {
+    if (!confirm(`"${t.dataset.regen}" mit frischen Amazon-Daten neu einlesen?\nErgebnis landet als Entwurf zum Review – Permalink und Live-Seite bleiben bis zur Freigabe unverändert.`)) return;
+    t.disabled = true; t.innerHTML = '<span class="spinner"></span> lese ein …';
+    try {
+      await api(`/api/categories/${t.dataset.regen}/regenerate`, { body: {} });
+      await refreshDrafts();
+      alert("Entwurf erzeugt – rechts unter Entwürfe reviewen und freigeben.");
+    } catch (err) { alert("Fehler: " + err.message); }
+    t.disabled = false; t.textContent = "Neu einlesen";
   }
   if (t.dataset.review) {
     currentSlug = t.dataset.review;
@@ -213,7 +292,18 @@ $("dlg-verify").onclick = async () => {
 
 $("dlg-approve").onclick = async () => {
   if (!confirm("Freigeben? Die Kategorie geht sofort live (automatischer Build).")) return;
-  await api(`/api/drafts/${currentSlug}/approve`, { body: {} });
+  try {
+    await api(`/api/drafts/${currentSlug}/approve`, { body: {} });
+  } catch (err) {
+    // Duplikat-Warnung vom Server: nur nach ausdrücklicher Bestätigung erzwingen
+    if (String(err.message).includes("Duplikat")) {
+      if (!confirm(err.message + "\n\nTrotzdem freigeben?")) return;
+      await api(`/api/drafts/${currentSlug}/approve`, { body: { force: true } });
+    } else {
+      alert("Fehler: " + err.message);
+      return;
+    }
+  }
   dlg.close();
   poll();
   refreshAll();
@@ -229,11 +319,13 @@ $("dlg-reject").onclick = async () => {
 let pollTimer = null;
 async function poll() {
   const s = await refreshStatus();
-  if (s && (s.discovery.running || s.publish.running)) {
-    pollTimer = setTimeout(poll, 2000);
+  if (s && (s.discovery.running || s.publish.running || (s.bulkDraft && s.bulkDraft.running))) {
+    if (s.bulkDraft && s.bulkDraft.running) { refreshSuggestions(); refreshDrafts(); }
+    pollTimer = setTimeout(poll, 3000);
   } else {
     clearTimeout(pollTimer);
     refreshSuggestions();
+    refreshDrafts();
   }
 }
 

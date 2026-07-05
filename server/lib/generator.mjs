@@ -81,6 +81,7 @@ export async function generateDraft(term, opts = {}) {
   if (opts.slug) draft.slug = opts.slug; // URL-Stabilität beim Regenerieren
   validateDraft(draft);
   draft.updatedAt = today;
+  draft.sourceTerm = term; // Ursprung merken → Vorschlagsliste kann Entwürfe markieren
 
   const byAsin = new Map(candidates.map((c) => [c.asin, c]));
   for (const p of draft.products) {

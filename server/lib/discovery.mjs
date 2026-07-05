@@ -47,15 +47,32 @@ async function existingCategories() {
   }
 }
 
+// Normalisierung wie in admin.mjs: Umlaute transliterieren, damit
+// „in ear kopfhörer“ den ASCII-Slug „in-ear-kopfhoerer“ trifft.
+function norm(s) {
+  return String(s || "")
+    .toLowerCase()
+    .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function isCovered(product, cats) {
-  const p = product.toLowerCase();
-  return cats.some(
-    (c) =>
-      p.includes(c.slug) ||
-      c.name.toLowerCase().includes(p) ||
-      p.includes(c.name.toLowerCase().split(" ")[0]) ||
-      c.terms.some((t) => t.toLowerCase().includes(p) || p.includes(t.toLowerCase()))
-  );
+  const p = norm(product);
+  if (!p) return false;
+  return cats.some((c) => {
+    const slug = norm(c.slug);
+    const name = norm(c.name);
+    return (
+      slug.includes(p) ||
+      p.includes(slug) ||
+      (name && (name.includes(p) || p.includes(name))) ||
+      c.terms.some((t) => {
+        const nt = norm(t);
+        return nt && (nt.includes(p) || p.includes(nt));
+      })
+    );
+  });
 }
 
 /**
