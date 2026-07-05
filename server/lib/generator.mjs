@@ -7,7 +7,7 @@ import { readFile, writeFile, mkdir, readdir, rename, unlink } from "node:fs/pro
 import { join } from "node:path";
 import { chat } from "./llm.mjs";
 import { ROOT } from "./env.mjs";
-import { verifyProducts } from "./asin.mjs";
+import { verifyProducts, searchAmazon } from "./asin.mjs";
 
 const DRAFTS_DIR = join(ROOT, "data", "drafts");
 const CATEGORIES_DIR = join(ROOT, "data", "categories");
@@ -16,9 +16,10 @@ const SYSTEM_PROMPT = `Du bist Datenredakteur für bookandbuy.de, eine deutsche,
 
 Du erstellst aus einem Produktsuchbegriff eine Kategorie-Datei als JSON. Regeln:
 - Sprache: Deutsch, sachlich, keine Werbesprache.
-- 4-6 real existierende, aktuell in Deutschland gut verfügbare Produkte, gemischte Preisklassen.
-- Preise: realistische aktuelle Amazon.de-Straßenpreise in EUR (ganze Zahlen). "checkedAt" auf das heutige Datum setzen.
-- ASIN: Wenn du die echte Amazon-ASIN sicher kennst, angeben. Wenn nicht, leeren String "" setzen (NIEMALS raten!).
+- Du bekommst eine Liste ECHTER Amazon.de-Suchtreffer (asin, title, price). Wähle daraus 4-6 unterschiedliche Hauptprodukte (kein Zubehör, keine Ersatzteile, keine Doppelungen desselben Modells), gemischte Preisklassen.
+- ASIN: IMMER exakt die asin des gewählten Suchtreffers übernehmen. Niemals eine andere oder erfundene ASIN verwenden.
+- name/brand: aus dem Amazon-Titel den sauberen Produktnamen und die Marke ableiten (Titel-Spam wie "【2026 Neu】" weglassen).
+- Preis: den mitgelieferten price übernehmen (ganze Zahl, EUR). Fehlt er, realistisch schätzen. "checkedAt" auf das heutige Datum setzen.
 - specs: 4-5 vergleichbare Kern-Spezifikationen, für alle Produkte dieselben Keys (keySpecs definiert Label + Einheit).
 - FAQ: 5 Fragen exakt so formuliert, wie Nutzer sie googeln/an ChatGPT stellen. Antwort-Format: Die erste Antwort-Satz enthält die konkrete Empfehlung mit Zahl (Preis/Wert) und endet ggf. mit "Stand: <Datum>".
 - verdict: Ein prägnanter Satz pro Produkt. bestFor: kurzes "beste Wahl für ..."-Fragment.
@@ -42,15 +43,33 @@ Antworte NUR mit dem JSON-Objekt in exakt diesem Schema:
   "faqs": [{ "q": "...", "a": "..." }]
 }`;
 
-/** Erzeugt einen Kategorie-Entwurf per LLM und speichert ihn in data/drafts/. */
+/** Erzeugt einen Kategorie-Entwurf per LLM und speichert ihn in data/drafts/.
+ *  Ablauf: erst echte Amazon-Suchtreffer holen (ASIN, Titel, Bild, Preis),
+ *  dann schreibt das LLM die Kategorie NUR aus diesen Kandidaten. */
 export async function generateDraft(term) {
   const today = new Date().toISOString().slice(0, 10);
+
+  // 1) Echte Produkte von Amazon (Quelle der Wahrheit für ASINs).
+  let candidates = [];
+  try {
+    candidates = await searchAmazon(term);
+  } catch (e) {
+    // Amazon nicht erreichbar → Fallback: LLM ohne Kandidaten, Verify räumt auf.
+  }
+  const candidateBlock = candidates.length
+    ? `\n\nEchte Amazon.de-Suchtreffer (NUR aus diesen wählen!):\n${JSON.stringify(
+        candidates.map(({ asin, title, price }) => ({ asin, title, price })),
+        null,
+        2
+      )}`
+    : "";
+
   const raw = await chat(
     [
       { role: "system", content: SYSTEM_PROMPT },
       {
         role: "user",
-        content: `Heutiges Datum: ${today}\nErstelle die Kategorie-Datei für den Suchbegriff: "${term}"`,
+        content: `Heutiges Datum: ${today}\nErstelle die Kategorie-Datei für den Suchbegriff: "${term}"${candidateBlock}`,
       },
     ],
     { json: true, temperature: 0.3 }
@@ -59,15 +78,32 @@ export async function generateDraft(term) {
   const draft = JSON.parse(raw);
   validateDraft(draft);
   draft.updatedAt = today;
+
+  const byAsin = new Map(candidates.map((c) => [c.asin, c]));
   for (const p of draft.products) {
     p.price.checkedAt = today;
     p.price.currency = "EUR";
+    const c = byAsin.get(p.asin);
+    if (c) {
+      // Daten direkt aus der Amazon-Suche: Bild + Preis sind belegt.
+      if (c.image) p.image = c.image;
+      if (c.price) p.price.value = c.price;
+      p.asinStatus = "ok";
+      p.asinCheckedAt = today;
+    } else {
+      p.asin = ""; // nicht aus den Kandidaten → keine erfundene ASIN durchlassen
+    }
   }
 
-  // ASIN-Verifikation: LLM-ASINs prüfen, ungültige per Amazon-Suche
-  // korrigieren (setzt asin, image, asinStatus je Produkt).
+  // 2) Nachprüfung nur für Produkte ohne bestätigte ASIN.
+  const unverified = draft.products.filter((p) => p.asinStatus !== "ok");
   try {
-    draft.asinReport = await verifyProducts(draft.products);
+    draft.asinReport = [
+      ...draft.products
+        .filter((p) => p.asinStatus === "ok")
+        .map((p) => ({ name: p.name, asin: p.asin, status: "ok (Amazon-Suche)" })),
+      ...(unverified.length ? await verifyProducts(unverified) : []),
+    ];
   } catch (e) {
     draft.asinReport = [{ name: "*", status: `Verifikation fehlgeschlagen: ${e.message}` }];
   }

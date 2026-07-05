@@ -29,41 +29,69 @@ export async function checkAsin(asin) {
   }
 }
 
-/** Amazon.de-Suche → [{ asin, title }] der organischen Treffer.
- *  Bei 503 (Rate-Limit) bis zu 3 Versuche mit wachsendem Backoff. */
-export async function searchAmazon(query) {
-  let res;
-  for (let attempt = 0; ; attempt++) {
-    res = await fetch(
-      `https://www.amazon.de/s?k=${encodeURIComponent(query)}`,
-      {
-        headers: {
-          "User-Agent": UA,
-          "Accept-Language": "de-DE,de;q=0.9",
-          Accept: "text/html",
-        },
-        signal: AbortSignal.timeout(15_000),
-      }
-    );
-    if (res.ok) break;
-    if (res.status === 503 && attempt < 3) {
-      await new Promise((r) => setTimeout(r, 8_000 * (attempt + 1)));
-      continue;
-    }
-    throw new Error(`Amazon-Suche: HTTP ${res.status}`);
-  }
-  const html = await res.text();
+// Mobile-UA: Desktop-UAs bekommen von Amazon inzwischen nur noch eine
+// bm-verify-Bot-Challenge bzw. 503 — der mobile Endpunkt liefert die
+// Suchergebnisse weiterhin ungebremst aus.
+const MOBILE_UA =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
-  // Titel steckt zuverlässig im alt-Text des Produktbilds, die echte
-  // Bild-URL (m.media-amazon.com) im src desselben img-Tags.
+// Suchdomains in Reihenfolge: amazon.de bevorzugt; blockt Amazon die IP
+// (503 / bm-verify — trifft z. B. die VPS-IP), weichen wir auf andere
+// EU-Marketplaces aus. ASINs sind EU-weit identisch, Preise in € ähnlich.
+const SEARCH_DOMAINS = ["www.amazon.de", "www.amazon.nl", "www.amazon.fr"];
+
+/** Amazon-Suche → [{ asin, title, image, price, sponsored }] der Treffer.
+ *  Bei 503/Bot-Challenge: Retry, dann Fallback auf andere EU-Domain. */
+export async function searchAmazon(query) {
+  let html = null;
+  let lastStatus = 0;
+  outer: for (const domain of SEARCH_DOMAINS) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 6_000));
+      let res;
+      try {
+        res = await fetch(`https://${domain}/s?k=${encodeURIComponent(query)}`, {
+          headers: {
+            "User-Agent": MOBILE_UA,
+            "Accept-Language": "de-DE,de;q=0.9",
+            Accept: "text/html",
+          },
+          signal: AbortSignal.timeout(15_000),
+        });
+      } catch {
+        continue;
+      }
+      lastStatus = res.status;
+      if (!res.ok) continue;
+      const body = await res.text();
+      // Bot-Challenge (bm-verify) kommt als HTTP 200 mit Mini-HTML zurück
+      if (!body.includes("bm-verify") && body.length > 50_000) {
+        html = body;
+        break outer;
+      }
+    }
+  }
+  if (!html) throw new Error(`Amazon-Suche blockiert (HTTP ${lastStatus})`);
+
+  // Treffer hängen am Produkt-Titel (<h2 aria-label="…">); die zugehörige
+  // ASIN steht im /dp/-Link direkt danach, der Preis (a-price-whole) ebenso.
+  const decode = (s) =>
+    s.replace(/&amp;/g, "&").replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim();
   const results = [];
-  const re = /data-asin="(B0[A-Z0-9]{8})"[\s\S]{0,3000}?<img[^>]*src="(https:\/\/m\.media-amazon\.com\/images\/I\/[^"]+)"[^>]*alt="([^"]{10,200})"|data-asin="(B0[A-Z0-9]{8})"[\s\S]{0,3000}?<img[^>]*alt="([^"]{10,200})"[^>]*src="(https:\/\/m\.media-amazon\.com\/images\/I\/[^"]+)"/g;
+  const h2Re = /<h2[^>]*aria-label="([^"]{15,300})"[^>]*>/g;
   let m;
-  while ((m = re.exec(html)) && results.length < 10) {
-    const asin = m[1] || m[4];
-    const title = (m[3] || m[5]).replace(/&amp;/g, "&").trim();
-    const image = m[2] || m[6];
-    if (!results.some((r) => r.asin === asin)) results.push({ asin, title, image });
+  while ((m = h2Re.exec(html)) && results.length < 12) {
+    let title = m[1];
+    if (/Ähnliche Produkte|Anzeigenfeedback|Vergelijkbare|similaires/i.test(title)) continue;
+    const sponsored = /^(Gesponserte Anzeige|Gesponsord|Annonce sponsoris)/i.test(title);
+    title = decode(title.replace(/^(Gesponserte Anzeige|Gesponsord[^–—]*|Annonce sponsoris[^–—]*)\s*[–—]\s*/i, ""));
+    const after = html.slice(m.index, m.index + 9_000);
+    const asin = after.match(/\/dp\/(B0[A-Z0-9]{8})/)?.[1];
+    if (!asin || results.some((r) => r.asin === asin)) continue;
+    const priceMatch = after.match(/a-price-whole">([\d.]{1,7})/);
+    const price = priceMatch ? Number(priceMatch[1].replace(/\./g, "")) : null;
+    // Produktbild deterministisch über den Bilder-CDN (gehört sicher zur ASIN)
+    results.push({ asin, title, image: asinImageUrl(asin), price, sponsored });
   }
   return results;
 }
