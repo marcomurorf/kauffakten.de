@@ -1,0 +1,69 @@
+---
+import "../styles/global.css";
+import { SITE } from "../config/site";
+
+interface Props {
+  title: string;
+  description: string;
+  jsonLd?: object;
+  canonical?: string;
+  noindex?: boolean;
+}
+
+const { title, description, jsonLd, canonical, noindex } = Astro.props;
+const canonicalUrl = canonical ?? new URL(Astro.url.pathname, SITE.domain).href;
+---
+
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+    {noindex && <meta name="robots" content="noindex" />}
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:site_name" content={SITE.name} />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    {
+      jsonLd && (
+        <script
+          type="application/ld+json"
+          set:html={JSON.stringify(jsonLd)}
+        />
+      )
+    }
+  </head>
+  <body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+    <header class="border-b border-slate-200 bg-white">
+      <div class="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
+        <a href="/" class="text-xl font-bold text-brand-700">Kauffakten<span class="text-brand-500">.de</span></a>
+        <span class="hidden text-sm text-slate-500 sm:block">{SITE.tagline}</span>
+      </div>
+    </header>
+    <main class="mx-auto max-w-5xl px-4 py-8">
+      <slot />
+    </main>
+    <footer class="mt-16 border-t border-slate-200 bg-white">
+      <div class="mx-auto max-w-5xl px-4 py-8 text-sm text-slate-500">
+        <p class="mb-2">
+          Alle Preisangaben mit Prüfdatum, ohne Gewähr. Als Amazon-Partner verdienen
+          wir an qualifizierten Verkäufen. Links zu Amazon sind Affiliate-Links.
+        </p>
+        <p class="mb-4">
+          Rohdaten frei nutzbar mit Quellenangabe:
+          <a href="/daten/" class="underline hover:text-brand-600">JSON-Feeds &amp; Daten-Lizenz</a>
+          · <a href="/llms.txt" class="underline hover:text-brand-600">llms.txt</a>
+        </p>
+        <nav class="flex gap-4">
+          <a href="/impressum/" class="hover:text-brand-600">Impressum</a>
+          <a href="/datenschutz/" class="hover:text-brand-600">Datenschutz</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

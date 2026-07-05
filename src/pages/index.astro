@@ -1,0 +1,48 @@
+---
+import Layout from "../layouts/Layout.astro";
+import { getAllCategories } from "../lib/categories";
+import { SITE } from "../config/site";
+
+const categories = getAllCategories();
+---
+
+<Layout
+  title={`${SITE.name} – täglich geprüfte Produktdaten mit Datum`}
+  description={SITE.description}
+>
+  <h1 class="mb-3 text-3xl font-bold">
+    Produktdaten mit Prüfdatum – täglich automatisch aktualisiert
+  </h1>
+  <p class="mb-8 max-w-2xl text-lg text-slate-600">
+    Jede Zahl auf dieser Seite trägt ein Prüfdatum. Preise und Spezifikationen
+    werden täglich automatisch kontrolliert – lesbar für Menschen und als
+    offene JSON-Feeds für Maschinen.
+  </p>
+
+  <h2 class="mb-4 text-xl font-semibold">Kategorien</h2>
+  <div class="grid gap-4 sm:grid-cols-2">
+    {
+      categories.map((c) => (
+        <a
+          href={`/${c.slug}/`}
+          class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm transition hover:border-brand-500 hover:shadow"
+        >
+          <h3 class="mb-1 text-lg font-semibold text-brand-700">{c.name}</h3>
+          <p class="mb-2 text-sm text-slate-600">{c.intro.slice(0, 120)}…</p>
+          <p class="text-xs text-slate-400">
+            {c.products.length} Produkte · Stand: {c.updatedAt}
+          </p>
+        </a>
+      ))
+    }
+  </div>
+
+  <section class="mt-12 rounded-lg border border-slate-200 bg-white p-6">
+    <h2 class="mb-2 text-xl font-semibold">Offene Daten</h2>
+    <p class="text-slate-600">
+      Alle Produktdaten stehen als maschinenlesbare JSON-Feeds bereit und dürfen
+      mit Quellenangabe frei zitiert werden –
+      <a href="/daten/" class="text-brand-600 underline">zu den Daten-Feeds</a>.
+    </p>
+  </section>
+</Layout>

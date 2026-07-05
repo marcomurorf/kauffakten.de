@@ -1,0 +1,164 @@
+{
+  "slug": "maehroboter",
+  "name": "Mähroboter ohne Begrenzungskabel",
+  "shortName": "Mähroboter",
+  "searchTerms": ["mähroboter ohne begrenzungskabel", "mähroboter test", "bester mähroboter 2026"],
+  "updatedAt": "2026-07-05",
+  "intro": "Mähroboter ohne Begrenzungskabel navigieren per Kamera, LiDAR oder RTK-GPS – ohne Draht im Rasen. Diese Übersicht wird täglich automatisch auf Preis- und Spezifikationsänderungen geprüft.",
+  "keySpecs": [
+    { "key": "flaeche", "label": "Max. Fläche", "unit": "m²" },
+    { "key": "navigation", "label": "Navigation", "unit": "" },
+    { "key": "steigung", "label": "Max. Steigung", "unit": "%" },
+    { "key": "lautstaerke", "label": "Lautstärke", "unit": "dB" },
+    { "key": "schnittbreite", "label": "Schnittbreite", "unit": "cm" }
+  ],
+  "products": [
+    {
+      "id": "segway-navimow-i105e",
+      "name": "Segway Navimow i105E",
+      "brand": "Segway",
+      "asin": "B0CTKKYSBB",
+      "price": { "value": 799, "currency": "EUR", "checkedAt": "2026-07-05" },
+      "specs": {
+        "flaeche": 500,
+        "navigation": "RTK-GPS + Kamera (VisionFence)",
+        "steigung": 30,
+        "lautstaerke": 54,
+        "schnittbreite": 18
+      },
+      "pros": [
+        "Sehr präzise RTK-Navigation ohne Draht",
+        "Einfache Einrichtung per App in unter 30 Minuten",
+        "Leiser Betrieb (54 dB)"
+      ],
+      "cons": [
+        "Nur für kleine Gärten bis 500 m²",
+        "RTK-Antenne braucht freien Himmel"
+      ],
+      "verdict": "Bester Einstieg für kleine Gärten bis 500 m² – präzise, leise, schnell eingerichtet.",
+      "bestFor": "kleine Gärten bis 500 m²"
+    },
+    {
+      "id": "dreame-a1",
+      "name": "Dreame A1",
+      "brand": "Dreame",
+      "asin": "B0CWV6HQ3X",
+      "price": { "value": 899, "currency": "EUR", "checkedAt": "2026-07-05" },
+      "specs": {
+        "flaeche": 2000,
+        "navigation": "3D-LiDAR (OmniSense)",
+        "steigung": 45,
+        "lautstaerke": 60,
+        "schnittbreite": 22
+      },
+      "pros": [
+        "LiDAR funktioniert auch ohne freien Himmel (Bäume, Carports)",
+        "Große Flächenabdeckung bis 2000 m²",
+        "Starke Steigfähigkeit (45 %)"
+      ],
+      "cons": [
+        "Etwas lauter als RTK-Konkurrenz",
+        "App-Zonenverwaltung anfangs unübersichtlich"
+      ],
+      "verdict": "Beste Wahl für verwinkelte Gärten mit Bäumen – LiDAR braucht keinen GPS-Empfang.",
+      "bestFor": "verwinkelte Gärten mit vielen Bäumen"
+    },
+    {
+      "id": "ecovacs-goat-g1",
+      "name": "Ecovacs Goat G1",
+      "brand": "Ecovacs",
+      "asin": "B0BX7GDVQZ",
+      "price": { "value": 1099, "currency": "EUR", "checkedAt": "2026-07-05" },
+      "specs": {
+        "flaeche": 1600,
+        "navigation": "UWB-Beacons + Kamera (TrueMapping)",
+        "steigung": 45,
+        "lautstaerke": 59,
+        "schnittbreite": 22
+      },
+      "pros": [
+        "Sehr gute Hinderniserkennung per KI-Kamera",
+        "Funktioniert zuverlässig auch bei schlechtem GPS",
+        "Integrierte Überwachungsfunktion für den Garten"
+      ],
+      "cons": [
+        "Beacons müssen im Garten aufgestellt werden",
+        "Höherer Preis als vergleichbare Modelle"
+      ],
+      "verdict": "Stark bei Hinderniserkennung – die Beacon-Pflicht ist der einzige Haken.",
+      "bestFor": "Gärten mit vielen Hindernissen und Haustieren"
+    },
+    {
+      "id": "worx-landroid-vision-m600",
+      "name": "Worx Landroid Vision M600",
+      "brand": "Worx",
+      "asin": "B0BR9V3QJP",
+      "price": { "value": 1299, "currency": "EUR", "checkedAt": "2026-07-05" },
+      "specs": {
+        "flaeche": 600,
+        "navigation": "Reine KI-Kamera (Vision)",
+        "steigung": 30,
+        "lautstaerke": 62,
+        "schnittbreite": 18
+      },
+      "pros": [
+        "Keine Antenne, keine Beacons – auspacken und losmähen",
+        "Erkennt Rasenkanten rein optisch",
+        "Sofort startklar ohne Kartierung"
+      ],
+      "cons": [
+        "Mäht in Zufallsbahnen statt systematisch",
+        "Bei hohem Gras (>10 cm) überfordert"
+      ],
+      "verdict": "Einfachste Einrichtung am Markt – dafür weniger systematisch beim Mähen.",
+      "bestFor": "alle, die null Einrichtung wollen"
+    },
+    {
+      "id": "husqvarna-automower-320-nera",
+      "name": "Husqvarna Automower 320 NERA",
+      "brand": "Husqvarna",
+      "asin": "B0BWSSHV6J",
+      "price": { "value": 2499, "currency": "EUR", "checkedAt": "2026-07-05" },
+      "specs": {
+        "flaeche": 2200,
+        "navigation": "RTK-GPS (EPOS, Referenzstation)",
+        "steigung": 50,
+        "lautstaerke": 58,
+        "schnittbreite": 24
+      },
+      "pros": [
+        "Profi-Qualität, sehr langlebig",
+        "Beste Steigfähigkeit im Vergleich (50 %)",
+        "Systematische Bahnen, virtuelle Zonen frei definierbar"
+      ],
+      "cons": [
+        "EPOS-Referenzstation kostet extra (~330 €)",
+        "Deutlich teuerste Option"
+      ],
+      "verdict": "Premium-Referenz für große Grundstücke – Qualität hat hier ihren Preis.",
+      "bestFor": "große Grundstücke ab 1500 m² und Hanglagen"
+    }
+  ],
+  "faqs": [
+    {
+      "q": "Welcher Mähroboter ohne Begrenzungskabel ist der beste?",
+      "a": "Für kleine Gärten bis 500 m² ist der Segway Navimow i105E (799 €) die beste Wahl, für verwinkelte Gärten mit Bäumen der Dreame A1 mit LiDAR (899 €). Für große Grundstücke ab 1500 m² führt der Husqvarna Automower 320 NERA (2499 €). Stand: 2026-07-05, täglich geprüft."
+    },
+    {
+      "q": "Wie funktioniert ein Mähroboter ohne Begrenzungskabel?",
+      "a": "Es gibt drei Techniken: RTK-GPS (zentimetergenaue Satellitenortung, braucht freien Himmel), 3D-LiDAR (Laserscanner, funktioniert auch unter Bäumen) und KI-Kamera (erkennt Rasenkanten optisch). Die Grenzen des Rasens werden einmalig per App eingezeichnet oder abgefahren."
+    },
+    {
+      "q": "Was kostet ein guter Mähroboter ohne Begrenzungskabel?",
+      "a": "Einstiegsmodelle für kleine Gärten beginnen bei rund 799 € (Segway Navimow i105E). Die Mittelklasse für 1000–2000 m² liegt bei 899–1300 €, Premium-Geräte wie der Husqvarna Automower 320 NERA kosten ab 2499 €. Stand: 2026-07-05."
+    },
+    {
+      "q": "RTK-GPS oder LiDAR – was ist besser?",
+      "a": "RTK-GPS ist präziser und günstiger, braucht aber freie Sicht zum Himmel. LiDAR funktioniert auch unter Bäumen, Carports und an Hauswänden, kostet dafür etwas mehr. Faustregel: offener Garten → RTK, viele Bäume → LiDAR."
+    },
+    {
+      "q": "Sind Mähroboter ohne Begrenzungskabel zuverlässig?",
+      "a": "Die Technik ist seit etwa 2023 ausgereift. RTK-Modelle erreichen eine Genauigkeit von 2–3 cm. Probleme gibt es hauptsächlich bei schlechtem GPS-Empfang (hohe Gebäude, dichte Bäume) – dort sind LiDAR-Modelle wie der Dreame A1 die zuverlässigere Wahl."
+    }
+  ]
+}

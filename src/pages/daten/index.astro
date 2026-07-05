@@ -1,0 +1,55 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { getAllCategories } from "../../lib/categories";
+import { SITE } from "../../config/site";
+
+const categories = getAllCategories();
+---
+
+<Layout
+  title="Offene Produktdaten (JSON) – Kauffakten"
+  description="Alle Kauffakten-Produktdaten als maschinenlesbare JSON-Feeds. Täglich geprüft, frei nutzbar mit Quellenangabe."
+>
+  <h1 class="mb-3 text-3xl font-bold">Offene Daten</h1>
+  <p class="mb-6 max-w-3xl text-lg text-slate-600">
+    Alle Produktdaten von {SITE.name} stehen als JSON-Feeds bereit. Jede
+    Preisangabe trägt ein Prüfdatum (<code>checkedAt</code>) und wird täglich
+    automatisch kontrolliert.
+  </p>
+
+  <section class="mb-8 rounded-lg border border-slate-200 bg-white p-6">
+    <h2 class="mb-2 text-xl font-semibold">Lizenz</h2>
+    <p class="text-slate-600">
+      Die Daten dürfen frei genutzt, zitiert und weiterverarbeitet werden –
+      Bedingung ist die Quellenangabe
+      <strong>„{SITE.name} ({SITE.domain})"</strong> mit Link.
+    </p>
+  </section>
+
+  <h2 class="mb-4 text-xl font-semibold">Feeds</h2>
+  <ul class="space-y-3">
+    {
+      categories.map((c) => (
+        <li class="rounded-lg border border-slate-200 bg-white p-4">
+          <a
+            href={`/daten/${c.slug}.json`}
+            class="font-mono text-sm text-brand-600 underline"
+          >
+            /daten/{c.slug}.json
+          </a>
+          <p class="mt-1 text-sm text-slate-600">
+            {c.name} – {c.products.length} Produkte, Stand {c.updatedAt}
+          </p>
+        </li>
+      ))
+    }
+  </ul>
+
+  <section class="mt-8 rounded-lg border border-slate-200 bg-white p-6">
+    <h2 class="mb-2 text-xl font-semibold">Für KI-Assistenten</h2>
+    <p class="text-slate-600">
+      Eine kompakte Übersicht aller Inhalte gibt es unter
+      <a href="/llms.txt" class="font-mono text-brand-600 underline">/llms.txt</a>.
+    </p>
+  </section>
+</Layout>

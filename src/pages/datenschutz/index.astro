@@ -1,0 +1,43 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { SITE } from "../../config/site";
+const o = SITE.owner;
+---
+
+<Layout
+  title={`Datenschutzerklärung – ${SITE.name}`}
+  description="Datenschutzerklärung gemäß DSGVO."
+>
+  <article class="prose max-w-3xl">
+    <h1 class="mb-6 text-3xl font-bold">Datenschutzerklärung</h1>
+
+    <h2 class="mt-6 mb-2 text-xl font-semibold">Verantwortlicher</h2>
+    <p>{o.name}, {o.street}, {o.zip} {o.city}, {o.country} –
+      <a href={`mailto:${o.email}`} class="text-brand-600 underline">{o.email}</a>
+    </p>
+
+    <h2 class="mt-6 mb-2 text-xl font-semibold">Hosting &amp; Server-Logs</h2>
+    <p class="text-slate-600">
+      Diese Website ist eine statische Seite ohne Nutzerkonten und ohne
+      Tracking-Cookies. Beim Aufruf werden vom Hosting-Anbieter technisch
+      notwendige Server-Logdaten (IP-Adresse, Zeitpunkt, aufgerufene Seite,
+      User-Agent) verarbeitet – Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO
+      (berechtigtes Interesse an sicherem Betrieb).
+    </p>
+
+    <h2 class="mt-6 mb-2 text-xl font-semibold">Affiliate-Links (Amazon)</h2>
+    <p class="text-slate-600">
+      Links zu Amazon enthalten einen Partner-Tag. Erst beim Klick auf einen
+      solchen Link werden Daten an Amazon übertragen; es gilt dann die
+      Datenschutzerklärung von Amazon. Auf unserer Seite selbst setzen wir
+      keine Amazon-Cookies.
+    </p>
+
+    <h2 class="mt-6 mb-2 text-xl font-semibold">Ihre Rechte</h2>
+    <p class="text-slate-600">
+      Sie haben das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung
+      der Verarbeitung, Datenübertragbarkeit und Widerspruch sowie auf
+      Beschwerde bei der Datenschutzbehörde (in Österreich: dsb.gv.at).
+    </p>
+  </article>
+</Layout>

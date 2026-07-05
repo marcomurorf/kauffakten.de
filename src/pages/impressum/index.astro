@@ -1,0 +1,42 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { SITE } from "../../config/site";
+const o = SITE.owner;
+---
+
+<Layout
+  title={`Impressum – ${SITE.name}`}
+  description="Impressum und Offenlegung gemäß § 5 ECG und § 25 MedienG."
+  noindex={true}
+>
+  <article class="prose max-w-3xl">
+    <h1 class="mb-6 text-3xl font-bold">Impressum</h1>
+
+    <h2 class="mt-6 mb-2 text-xl font-semibold">Angaben gemäß § 5 ECG und § 25 MedienG</h2>
+    <p>{o.name}<br />{o.street}<br />{o.zip} {o.city}<br />{o.country}</p>
+
+    <h2 class="mt-6 mb-2 text-xl font-semibold">Kontakt</h2>
+    <p>E-Mail: <a href={`mailto:${o.email}`} class="text-brand-600 underline">{o.email}</a></p>
+
+    <h2 class="mt-6 mb-2 text-xl font-semibold">Unternehmensgegenstand</h2>
+    <p>
+      Betrieb einer automatisch aktualisierten Produktdatenbank und
+      Affiliate-Website mit datenbasierter Kaufberatung.
+    </p>
+
+    <h2 class="mt-6 mb-2 text-xl font-semibold">Haftung für Inhalte</h2>
+    <p class="text-slate-600">
+      Die Inhalte dieser Seiten werden automatisiert erstellt und mit größter
+      Sorgfalt geprüft. Für die Richtigkeit, Vollständigkeit und Aktualität der
+      Inhalte können wir jedoch keine Gewähr übernehmen. Preisangaben tragen ein
+      Prüfdatum und können sich seither geändert haben.
+    </p>
+
+    <h2 class="mt-6 mb-2 text-xl font-semibold">Affiliate-Hinweis</h2>
+    <p class="text-slate-600">
+      Als Amazon-Partner verdienen wir an qualifizierten Verkäufen. Links zu
+      Amazon sind mit „*" gekennzeichnete Affiliate-Links. Für Käufer entstehen
+      keine Mehrkosten.
+    </p>
+  </article>
+</Layout>
