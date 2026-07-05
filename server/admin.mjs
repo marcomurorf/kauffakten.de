@@ -194,35 +194,43 @@ async function notifyBluesky(slug) {
     if (!session.accessJwt)
       throw new Error(session.message || "Login fehlgeschlagen");
 
-    // Produktbild des Top-Produkts → Blob hochladen → Link-Karte mit Thumbnail.
-    // Ungültige ASINs liefern beim Amazon-CDN ein 43-Byte-GIF → Größe prüfen.
+    // Produktbild → Blob hochladen → Link-Karte mit Thumbnail.
+    // Alle Produkte durchprobieren und das GRÖSSTE brauchbare Bild nehmen –
+    // ungültige ASINs liefern beim Amazon-CDN nur ein 43-Byte-GIF, manche
+    // Produkte nur Mini-Bilder (wenige KB), die auf der Karte unscharf wirken.
     let thumb = null;
-    const top = (cat.products || []).find((p) => p.image || p.asin);
-    if (top) {
-      try {
+    try {
+      let best = null; // { buf, type }
+      for (const p of cat.products || []) {
+        if (!p.image && !p.asin) continue;
         const imgUrl =
-          top.image ||
-          `https://images-eu.ssl-images-amazon.com/images/P/${top.asin}.03._SL500_.jpg`;
-        const imgRes = await fetch(imgUrl, { signal: AbortSignal.timeout(10_000) });
+          p.image ||
+          `https://images-eu.ssl-images-amazon.com/images/P/${p.asin}.03._SL500_.jpg`;
+        const imgRes = await fetch(imgUrl, { signal: AbortSignal.timeout(10_000) }).catch(() => null);
+        if (!imgRes?.ok) continue;
         const buf = Buffer.from(await imgRes.arrayBuffer());
-        if (imgRes.ok && buf.length > 1000 && buf.length < 950_000) {
-          const upRes = await fetch(
-            "https://bsky.social/xrpc/com.atproto.repo.uploadBlob",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": imgRes.headers.get("content-type") || "image/jpeg",
-                Authorization: `Bearer ${session.accessJwt}`,
-              },
-              body: buf,
-              signal: AbortSignal.timeout(15_000),
-            }
-          );
-          if (upRes.ok) thumb = (await upRes.json()).blob;
-        }
-      } catch {
-        /* ohne Bild weiter */
+        if (buf.length < 1000 || buf.length > 950_000) continue;
+        if (!best || buf.length > best.buf.length)
+          best = { buf, type: imgRes.headers.get("content-type") || "image/jpeg" };
+        if (best.buf.length > 30_000) break; // groß genug → nicht weiter suchen
       }
+      if (best) {
+        const upRes = await fetch(
+          "https://bsky.social/xrpc/com.atproto.repo.uploadBlob",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": best.type,
+              Authorization: `Bearer ${session.accessJwt}`,
+            },
+            body: best.buf,
+            signal: AbortSignal.timeout(15_000),
+          }
+        );
+        if (upRes.ok) thumb = (await upRes.json()).blob;
+      }
+    } catch {
+      /* ohne Bild weiter */
     }
 
     // Link-Karte (external embed); Link zusätzlich als Facet klickbar.
