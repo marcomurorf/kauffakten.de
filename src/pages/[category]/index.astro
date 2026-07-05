@@ -17,12 +17,16 @@ const cheapest = [...category.products].sort(
 )[0];
 // Empfehlung = erstes Produkt (redaktionelle Reihenfolge), Preis-Tipp = günstigstes
 const topPick = category.products[0];
+// Manche LLM-generierte Namen enthalten schon „Vergleich“ – Suffix strippen,
+// sonst entsteht „… im Vergleich im Vergleich“ in Title/H1.
+const baseName = category.name.replace(/\s*(im\s+)?Vergleich(\s+\d{4})?\s*$/i, "").trim() || category.name;
 ---
 
 <Layout
-  title={`${category.name} im Vergleich (Stand: ${category.updatedAt}) – BookAndBuy`}
+  title={`${baseName} im Vergleich (Stand: ${category.updatedAt}) – BookAndBuy`}
   description={`${category.products.length} ${category.shortName} im datenbasierten Vergleich. Alle Preise geprüft am ${category.updatedAt}. Ab ${formatPrice(cheapest.price)}.`}
   jsonLd={categoryJsonLd(category)}
+  ogImage={topPick ? productImageUrl(topPick) : undefined}
 >
   <div class="mb-8">
     <div class="mb-3 flex flex-wrap items-center gap-2 text-xs font-medium">
@@ -33,7 +37,7 @@ const topPick = category.products[0];
       <span class="rounded-full bg-brand-100 px-3 py-1 text-brand-700">{category.products.length} Modelle verglichen</span>
       <a href={`/daten/${category.slug}.json`} class="rounded-full bg-slate-100 px-3 py-1 text-slate-600 hover:bg-slate-200">Rohdaten (JSON) ↓</a>
     </div>
-    <h1 class="mb-3 text-3xl font-bold tracking-tight sm:text-4xl">{category.name} im Vergleich</h1>
+    <h1 class="mb-3 text-3xl font-bold tracking-tight sm:text-4xl">{baseName} im Vergleich</h1>
     <p class="max-w-3xl text-lg leading-relaxed text-slate-600">{category.intro}</p>
   </div>
 

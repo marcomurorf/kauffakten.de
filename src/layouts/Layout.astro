@@ -8,9 +8,10 @@ interface Props {
   jsonLd?: object;
   canonical?: string;
   noindex?: boolean;
+  ogImage?: string;
 }
 
-const { title, description, jsonLd, canonical, noindex } = Astro.props;
+const { title, description, jsonLd, canonical, noindex, ogImage } = Astro.props;
 const canonicalUrl = canonical ?? new URL(Astro.url.pathname, SITE.domain).href;
 ---
 
@@ -28,6 +29,7 @@ const canonicalUrl = canonical ?? new URL(Astro.url.pathname, SITE.domain).href;
     <meta property="og:type" content="website" />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:site_name" content={SITE.name} />
+    {ogImage && <meta property="og:image" content={ogImage} />}
     <link rel="sitemap" href="/sitemap-index.xml" />
     {
       jsonLd && (
