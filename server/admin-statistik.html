@@ -24,8 +24,8 @@
     <h2>Live-Geschehen</h2>
     <div class="scroll-x">
     <table>
-      <thead><tr><th>Zeit</th><th>Typ</th><th>Wer</th><th>Was</th><th>Referrer</th></tr></thead>
-      <tbody id="live-body"><tr><td colspan="5" class="muted">Lade …</td></tr></tbody>
+      <thead><tr><th>Zeit</th><th>Typ</th><th>Wer</th><th>Herkunft</th><th>Was</th><th>Referrer</th></tr></thead>
+      <tbody id="live-body"><tr><td colspan="6" class="muted">Lade …</td></tr></tbody>
     </table>
     </div>
   </section>
@@ -35,6 +35,28 @@
       <button class="secondary" id="btn-stats" style="float:right">Aktualisieren</button>
     </h2>
     <div class="cols">
+      <div>
+        <h3 style="margin:8px 0">Echte Besucher <span class="muted" id="visit-total"></span></h3>
+        <div class="scroll-x">
+        <table>
+          <thead><tr><th>Land</th><th>Besucher (IPs)</th></tr></thead>
+          <tbody id="country-body"><tr><td colspan="2" class="muted">Lade …</td></tr></tbody>
+        </table>
+        </div>
+        <p class="muted" id="visit-dc"></p>
+        <h3 style="margin:8px 0">Externe Referrer</h3>
+        <div class="scroll-x">
+        <table>
+          <tbody id="ref-body"><tr><td class="muted">–</td></tr></tbody>
+        </table>
+        </div>
+        <h3 style="margin:8px 0">Meistbesuchte Seiten</h3>
+        <div class="scroll-x">
+        <table>
+          <tbody id="visitpath-body"><tr><td class="muted">–</td></tr></tbody>
+        </table>
+        </div>
+      </div>
       <div>
         <h3 style="margin:8px 0">LLM-Crawler <span class="muted" id="bot-total"></span></h3>
         <div class="scroll-x">
@@ -50,8 +72,6 @@
           <tbody id="botpath-body"><tr><td class="muted">–</td></tr></tbody>
         </table>
         </div>
-      </div>
-      <div>
         <h3 style="margin:8px 0">Amazon-Klicks <span class="muted" id="click-total"></span></h3>
         <div class="scroll-x">
         <table>
@@ -61,6 +81,7 @@
         </div>
       </div>
     </div>
+    <p class="muted">Länder via ip-api.com (dauerhaft gecacht, jede IP nur einmal abgefragt). „Rechenzentrum“ = Hosting-/Proxy-IPs, vermutlich getarnte Bots.</p>
   </section>
 </main>
 
@@ -91,18 +112,40 @@ async function refreshLive() {
         <td style="white-space:nowrap">${esc(e.ts.slice(5, 16).replace("T", " "))}</td>
         <td>${typeBadge[e.type] || esc(e.type)}</td>
         <td>${esc(e.who)}</td>
+        <td style="white-space:nowrap" title="${esc(e.ip || "")}">${flag(e.cc)}${esc(e.geo || e.ip || "")}${e.dc ? ' <span class="badge err" title="Rechenzentrums-IP – vermutlich Bot">DC</span>' : ""}</td>
         <td>${esc(e.what)}${e.status && e.status >= 400 ? ` <span class="badge err">${e.status}</span>` : ""}</td>
         <td class="muted" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.ref || "")}</td>
       </tr>`).join("")
-      : '<tr><td colspan="5" class="muted">Noch keine Ereignisse.</td></tr>';
+      : '<tr><td colspan="6" class="muted">Noch keine Ereignisse.</td></tr>';
   } catch (e) {
-    $("live-body").innerHTML = `<tr><td colspan="5" class="muted">Fehler: ${esc(e.message)}</td></tr>`;
+    $("live-body").innerHTML = `<tr><td colspan="6" class="muted">Fehler: ${esc(e.message)}</td></tr>`;
   }
+}
+
+// Ländercode → Flaggen-Emoji
+function flag(cc) {
+  if (!cc || cc.length !== 2) return "";
+  return String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 0x1f1a5 + c.charCodeAt(0))) + " ";
 }
 
 async function refreshStats() {
   try {
     const s = await api(`/api/stats?days=${$("sel-days").value}`, { method: "GET" });
+    if (s.visitors) {
+      $("visit-total").textContent = `· ${s.visitors.total} Seitenaufrufe, ${s.visitors.uniqueIps} IPs`;
+      $("country-body").innerHTML = s.visitors.byCountry.length
+        ? s.visitors.byCountry.map(([c, n]) => `<tr><td>${flag(c.slice(0, 2))}${esc(c.slice(3) || c)}</td><td class="hits">${n}</td></tr>`).join("")
+        : '<tr><td colspan="2" class="muted">Noch keine Besucher erfasst.</td></tr>';
+      $("visit-dc").textContent = s.visitors.dcIps
+        ? `+ ${s.visitors.dcIps} Rechenzentrums-/Proxy-IPs (vermutlich getarnte Bots, nicht in der Länderliste)`
+        : "";
+      $("ref-body").innerHTML = s.visitors.topReferrers.length
+        ? s.visitors.topReferrers.map(([r, n]) => `<tr><td>${esc(r)}</td><td class="hits">${n}</td></tr>`).join("")
+        : '<tr><td class="muted">Keine externen Referrer.</td></tr>';
+      $("visitpath-body").innerHTML = s.visitors.topPaths.length
+        ? s.visitors.topPaths.map(([p, n]) => `<tr><td>${esc(p)}</td><td class="hits">${n}</td></tr>`).join("")
+        : '<tr><td class="muted">–</td></tr>';
+    }
     $("bot-total").textContent = `· ${s.bots.total} Zugriffe`;
     $("bot-body").innerHTML = s.bots.byBot.length
       ? s.bots.byBot.map(([bot, n]) => `<tr><td>${esc(bot)}</td><td class="hits">${n}</td></tr>`).join("")

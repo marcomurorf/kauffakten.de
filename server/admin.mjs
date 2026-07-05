@@ -531,6 +531,76 @@ const LLM_BOTS = [
   ["Cohere", /cohere/i],
 ];
 
+// Generische Bots/Skripte (zusätzlich zu den LLM-Crawlern oben).
+const GENERIC_BOT_RE = /bot|crawl|spider|slurp|scan|probe|fetch|monitor|pingdom|uptime|curl|wget|python|go-http|node-fetch|axios|okhttp|java\/|libwww|headless|phantom|lighthouse|facebookexternalhit|preview|feedly|rss/i;
+
+// UA klassifizieren: bekannter LLM-Crawler, sonstiger Bot oder echter Besucher.
+function classifyUa(ua) {
+  const llm = LLM_BOTS.find(([, re]) => re.test(ua));
+  if (llm) return { type: "bot", name: llm[0] };
+  if (!ua) return { type: "bot", name: "ohne User-Agent" };
+  if (GENERIC_BOT_RE.test(ua)) {
+    const m = ua.match(/([a-z0-9._-]*(?:bot|crawler|spider|scan)[a-z0-9._-]*)/i);
+    return { type: "bot", name: (m ? m[1] : ua.split(/[\s/(]/)[0]).slice(0, 30) || "Skript" };
+  }
+  return { type: "visit", name: shortUa(ua) };
+}
+
+// ------------------------------------------------- GeoIP (Land je IP)
+// Lookup via ip-api.com (Batch, kostenlos), dauerhaft gecacht in
+// data/geoip-cache.json – jede IP wird also höchstens einmal abgefragt.
+const GEO_CACHE_FILE = join(ROOT, "data", "geoip-cache.json");
+const PRIVATE_IP_RE = /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|fe80:|f[cd])/i;
+let geoCache = null;
+let geoSaveTimer = null;
+
+async function loadGeoCache() {
+  if (geoCache) return geoCache;
+  try {
+    geoCache = new Map(Object.entries(JSON.parse(await readFile(GEO_CACHE_FILE, "utf8"))));
+  } catch { geoCache = new Map(); }
+  return geoCache;
+}
+
+function scheduleGeoSave() {
+  if (geoSaveTimer) return;
+  geoSaveTimer = setTimeout(async () => {
+    geoSaveTimer = null;
+    try {
+      await mkdir(join(ROOT, "data"), { recursive: true });
+      await writeFile(GEO_CACHE_FILE, JSON.stringify(Object.fromEntries(geoCache)), "utf8");
+    } catch { /* Cache-Verlust ist unkritisch */ }
+  }, 2000);
+}
+
+// Löst eine Liste von IPs auf; fehlende werden gebündelt nachgeschlagen
+// (max. 100 pro Aufruf – Rest kommt beim nächsten Refresh dran).
+async function geoLookup(ips) {
+  const cache = await loadGeoCache();
+  const missing = [...new Set(ips)]
+    .filter((ip) => ip && !cache.has(ip) && !PRIVATE_IP_RE.test(ip))
+    .slice(0, 100);
+  if (missing.length) {
+    try {
+      const r = await fetch("http://ip-api.com/batch?fields=status,countryCode,country,city,hosting,proxy,query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(missing),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (r.ok) {
+        for (const e of await r.json()) {
+          cache.set(e.query, e.status === "success"
+            ? { cc: e.countryCode || "", country: e.country || "", city: e.city || "", dc: !!(e.hosting || e.proxy) }
+            : { cc: "", country: "", city: "", dc: false });
+        }
+        scheduleGeoSave();
+      }
+    } catch { /* offline/Rate-Limit → nächster Versuch beim nächsten Aufruf */ }
+  }
+  return cache;
+}
+
 async function recordClick(entry) {
   await mkdir(join(ROOT, "data"), { recursive: true });
   await appendFile(CLICKS_FILE, JSON.stringify(entry) + "\n", "utf8");
@@ -576,26 +646,61 @@ async function buildStats(days = 14) {
     clicksByProduct[key] = (clicksByProduct[key] || 0) + 1;
   }
 
-  // --- LLM-Crawler aus Caddy-Log ---
+  // --- Access-Log: LLM-Crawler + echte Besucher ---
   const botHits = {};   // bot → count
   const botByDay = {};  // day → count
   const botPaths = {};  // path → count
   let lastBotHit = null;
+
+  const visitorIps = new Map(); // ip → { hits, ua }
+  const visitPaths = {};        // path → count (nur echte Besucher)
+  const visitRefs = {};         // referrer-host → count
+  const visitsByDay = {};       // day → count
+
   for (const line of await readAccessLogTail()) {
     let e; try { e = JSON.parse(line); } catch { continue; }
-    const ua = e.request?.headers?.["User-Agent"]?.[0] || "";
-    const bot = LLM_BOTS.find(([, re]) => re.test(ua));
-    if (!bot) continue;
     const tsMs = e.ts * 1000;
     if (tsMs < cutoff) continue;
     const uri = e.request?.uri || "";
-    if (/\.(css|js|png|jpg|svg|ico|woff2?)(\?|$)/.test(uri)) continue;
-    botHits[bot[0]] = (botHits[bot[0]] || 0) + 1;
+    if (STATIC_RE.test(uri) || uri.startsWith("/admin")) continue;
+    const ua = e.request?.headers?.["User-Agent"]?.[0] || "";
     const day = new Date(tsMs).toISOString().slice(0, 10);
-    botByDay[day] = (botByDay[day] || 0) + 1;
-    botPaths[uri] = (botPaths[uri] || 0) + 1;
-    if (!lastBotHit || tsMs > lastBotHit.tsMs)
-      lastBotHit = { tsMs, bot: bot[0], uri };
+    const cls = classifyUa(ua);
+
+    if (cls.type === "bot") {
+      const llm = LLM_BOTS.find(([, re]) => re.test(ua));
+      if (!llm) continue; // generische Bots nicht in der LLM-Tabelle zählen
+      botHits[llm[0]] = (botHits[llm[0]] || 0) + 1;
+      botByDay[day] = (botByDay[day] || 0) + 1;
+      botPaths[uri] = (botPaths[uri] || 0) + 1;
+      if (!lastBotHit || tsMs > lastBotHit.tsMs)
+        lastBotHit = { tsMs, bot: llm[0], uri };
+      continue;
+    }
+
+    // Echte Besucher
+    const ip = e.request?.client_ip || e.request?.remote_ip || "";
+    const v = visitorIps.get(ip) || { hits: 0, ua: cls.name };
+    v.hits++;
+    visitorIps.set(ip, v);
+    visitsByDay[day] = (visitsByDay[day] || 0) + 1;
+    visitPaths[uri] = (visitPaths[uri] || 0) + 1;
+    const ref = e.request?.headers?.["Referer"]?.[0] || "";
+    if (ref && !ref.includes("bookandbuy.de")) {
+      try { visitRefs[new URL(ref).hostname] = (visitRefs[new URL(ref).hostname] || 0) + 1; }
+      catch { /* kaputter Referer */ }
+    }
+  }
+
+  // Länder der Besucher-IPs; Rechenzentrums-IPs (Hosting/Proxy) getrennt zählen
+  const geo = await geoLookup([...visitorIps.keys()]);
+  const byCountry = {}; // "DE Deutschland" → unique IPs
+  let dcIps = 0;
+  for (const ip of visitorIps.keys()) {
+    const g = geo.get(ip);
+    if (g?.dc) { dcIps++; continue; }
+    const key = g?.country ? `${g.cc} ${g.country}` : "unbekannt";
+    byCountry[key] = (byCountry[key] || 0) + 1;
   }
 
   const top = (obj, n) =>
@@ -607,6 +712,15 @@ async function buildStats(days = 14) {
       total: clicks.length,
       byDay: clicksByDay,
       topProducts: top(clicksByProduct, 10),
+    },
+    visitors: {
+      total: Object.values(visitsByDay).reduce((a, b) => a + b, 0),
+      uniqueIps: visitorIps.size,
+      dcIps, // davon Rechenzentrum/Proxy (vermutlich getarnte Bots)
+      byDay: visitsByDay,
+      byCountry: top(byCountry, 12),
+      topPaths: top(visitPaths, 10),
+      topReferrers: top(visitRefs, 10),
     },
     bots: {
       total: Object.values(botHits).reduce((a, b) => a + b, 0),
@@ -634,14 +748,15 @@ async function buildLiveFeed(limit = 60) {
     if (STATIC_RE.test(uri)) continue;
     if (uri.startsWith("/admin")) continue; // eigenes Admin-Gewusel ausblenden
     const ua = e.request?.headers?.["User-Agent"]?.[0] || "";
-    const bot = LLM_BOTS.find(([, re]) => re.test(ua));
+    const cls = classifyUa(ua);
     events.push({
       ts: new Date(e.ts * 1000).toISOString(),
-      type: bot ? "bot" : "visit",
-      who: bot ? bot[0] : shortUa(ua),
+      type: cls.type,
+      who: cls.name,
       what: uri,
       status: e.status,
       ref: e.request?.headers?.["Referer"]?.[0] || "",
+      ip: e.request?.client_ip || e.request?.remote_ip || "",
     });
   }
 
@@ -653,11 +768,21 @@ async function buildLiveFeed(limit = 60) {
       who: shortUa(c.ua || ""),
       what: `${c.c || "?"} → ${c.p || "?"}`,
       ref: c.path || "",
+      ip: c.ip || "",
     });
   }
 
   events.sort((a, b) => (a.ts < b.ts ? 1 : -1));
-  return { generatedAt: new Date().toISOString(), events: events.slice(0, limit) };
+  const slice = events.slice(0, limit);
+
+  // Länder für die sichtbaren Events anreichern
+  const geo = await geoLookup(slice.map((e) => e.ip));
+  for (const e of slice) {
+    const g = e.ip ? geo.get(e.ip) : null;
+    if (g) { e.cc = g.cc; e.geo = [g.city, g.country].filter(Boolean).join(", "); e.dc = g.dc; }
+  }
+
+  return { generatedAt: new Date().toISOString(), events: slice };
 }
 
 // Kompakte Browser/OS-Kennung aus dem User-Agent.
@@ -746,6 +871,7 @@ const server = createServer(async (req, res) => {
       try { body = await readBody(req); } catch { /* leeres Beacon ok */ }
       await recordClick({
         ts: new Date().toISOString(),
+        ip,
         k: String(body.k || "").slice(0, 40),
         p: String(body.p || "").slice(0, 80),
         c: String(body.c || "").slice(0, 80),
