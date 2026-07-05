@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Kauffakten Admin-Server: lokale UI + API für die Content-Pipeline.
+// BookAndBuy Admin-Server: lokale UI + API für die Content-Pipeline.
 //
 //   node server/admin.mjs          → http://localhost:4321 ... nein: 5177
 //
@@ -13,6 +13,8 @@
 import { createServer } from "node:http";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { loadEnv, ROOT } from "./lib/env.mjs";
 import { runDiscovery } from "./lib/discovery.mjs";
 import {
@@ -24,12 +26,16 @@ import { llmConfigured } from "./lib/llm.mjs";
 loadEnv();
 
 const PORT = Number(process.env.ADMIN_PORT || 5177);
+const HOST = process.env.ADMIN_HOST || "127.0.0.1";
 const SUGGESTIONS_FILE = join(ROOT, "data", "suggestions.json");
+const execFileAsync = promisify(execFile);
 
 // ---------------------------------------------------------------- Zustand
 const state = {
   discovery: { running: false, progress: "", startedAt: null, finishedAt: null },
   generating: new Set(), // Begriffe, für die gerade ein Entwurf erzeugt wird
+  publish: { running: false, ok: null, output: "", finishedAt: null },
+  autoDrafting: false,
 };
 
 async function loadSuggestions() {
@@ -70,6 +76,74 @@ async function startDiscovery() {
   }
 }
 
+// ------------------------------------------------------- Publish (Build)
+async function runPublish() {
+  if (state.publish.running) return;
+  state.publish = { running: true, ok: null, output: "baue …", finishedAt: null };
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      process.execPath,
+      [join(ROOT, "node_modules", "astro", "astro.js"), "build"],
+      { cwd: ROOT, timeout: 5 * 60 * 1000, maxBuffer: 10 * 1024 * 1024 }
+    );
+    state.publish.ok = true;
+    state.publish.output = (stdout + stderr).split("\n").slice(-6).join("\n");
+  } catch (e) {
+    state.publish.ok = false;
+    state.publish.output = String(e.message).slice(0, 800);
+  } finally {
+    state.publish.running = false;
+    state.publish.finishedAt = new Date().toISOString();
+  }
+}
+
+// ------------------------------------- Auto-Pilot (täglicher Scheduler)
+// Läuft jede Nacht: Discovery → für die Top-N neuen Begriffe automatisch
+// LLM-Entwürfe erzeugen. Veröffentlichung bleibt manuell (Review-Gate).
+const AUTO_HOUR = Number(process.env.AUTO_HOUR ?? 5); // 05:00 Serverzeit
+const AUTO_DRAFT_LIMIT = Number(process.env.AUTO_DRAFT_LIMIT ?? 3);
+
+async function autoDraftTopSuggestions() {
+  if (!llmConfigured() || state.autoDrafting) return;
+  state.autoDrafting = true;
+  try {
+    const data = await loadSuggestions();
+    const drafts = await listDrafts();
+    const draftSlugs = new Set(drafts.map((d) => d.slug));
+    const candidates = data.items
+      .filter((i) => !i.covered && !i.dismissed)
+      .sort((a, b) => b.hits - a.hits)
+      .slice(0, AUTO_DRAFT_LIMIT);
+    for (const c of candidates) {
+      const slugGuess = c.term.toLowerCase().replace(/[^a-z0-9äöüß]+/g, "-");
+      if ([...draftSlugs].some((s) => s.includes(slugGuess) || slugGuess.includes(s))) continue;
+      try {
+        const draft = await generateDraft(c.term);
+        console.log(`[auto] Entwurf erzeugt: ${draft.slug}`);
+      } catch (e) {
+        console.error(`[auto] Entwurf fehlgeschlagen (${c.term}): ${e.message}`);
+      }
+    }
+  } finally {
+    state.autoDrafting = false;
+  }
+}
+
+function scheduleAutoPilot() {
+  const now = new Date();
+  const next = new Date(now);
+  next.setHours(AUTO_HOUR, 0, 0, 0);
+  if (next <= now) next.setDate(next.getDate() + 1);
+  const ms = next - now;
+  setTimeout(async () => {
+    console.log("[auto] Nächtlicher Lauf: Discovery + Entwürfe");
+    await startDiscovery();
+    await autoDraftTopSuggestions();
+    scheduleAutoPilot();
+  }, ms);
+  console.log(`[auto] Nächster automatischer Lauf: ${next.toISOString()}`);
+}
+
 // ---------------------------------------------------------------- Helpers
 const json = (res, code, data) => {
   res.writeHead(code, { "Content-Type": "application/json; charset=utf-8" });
@@ -107,10 +181,18 @@ const server = createServer(async (req, res) => {
         llmConfigured: llmConfigured(),
         discovery: state.discovery,
         generating: [...state.generating],
+        publish: state.publish,
+        autoDrafting: state.autoDrafting,
         suggestionsUpdatedAt: suggestions.updatedAt,
         suggestionCount: suggestions.items.filter((i) => !i.covered && !i.dismissed).length,
         draftCount: drafts.length,
       });
+    }
+
+    // --- Publish (Astro-Build; Caddy liefert dist/ direkt aus) ---
+    if (req.method === "POST" && path === "/api/publish") {
+      runPublish(); // Hintergrund
+      return json(res, 202, { started: true });
     }
 
     // --- Discovery ---
@@ -162,7 +244,8 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && path.startsWith("/api/drafts/") && path.endsWith("/approve")) {
       const slug = path.split("/")[3];
       await approveDraft(slug);
-      return json(res, 200, { ok: true });
+      runPublish(); // Freigabe stößt automatisch den Live-Build an
+      return json(res, 200, { ok: true, publishing: true });
     }
     if (req.method === "POST" && path.startsWith("/api/drafts/") && path.endsWith("/reject")) {
       const slug = path.split("/")[3];
@@ -175,8 +258,8 @@ const server = createServer(async (req, res) => {
     json(res, 500, { error: e.message });
   }
 });
-
-server.listen(PORT, "127.0.0.1", () => {
-  console.log(`Kauffakten-Admin läuft: http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`BookAndBuy-Admin läuft: http://${HOST}:${PORT}`);
   console.log(`Azure OpenAI: ${llmConfigured() ? "konfiguriert ✅" : "NICHT konfiguriert – Key in .env setzen"}`);
+  if (process.env.AUTO_PILOT !== "0") scheduleAutoPilot();
 });

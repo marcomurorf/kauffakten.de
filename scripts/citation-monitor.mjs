@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-// Zitier-Monitor: prüft, ob kauffakten.de in KI-Suchergebnissen auftaucht.
+// Zitier-Monitor: prüft, ob bookandbuy.de in KI-Suchergebnissen auftaucht.
 //
 // Stufe 1 (kostenlos, sofort): prüft die Bing-Indexierung der eigenen URLs –
 //   ohne Bing-Index keine ChatGPT-Zitate. Nutzt die normale Bing-Suche.
 // Stufe 2 (optional, API-Key nötig): stellt die Ziel-Fragen an Perplexity
-//   (PERPLEXITY_API_KEY) und prüft die zitierten Quellen auf kauffakten.de.
+//   (PERPLEXITY_API_KEY) und prüft die zitierten Quellen auf bookandbuy.de.
 //
 // Nutzung:  node scripts/citation-monitor.mjs
 //           PERPLEXITY_API_KEY=... node scripts/citation-monitor.mjs
 
 import { readFile, readdir } from "node:fs/promises";
 
-const DOMAIN = "kauffakten.de";
+const DOMAIN = "bookandbuy.de";
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 

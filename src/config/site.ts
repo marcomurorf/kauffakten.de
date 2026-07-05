@@ -1,16 +1,16 @@
 export const SITE = {
-  name: "Kauffakten",
-  domain: "https://www.kauffakten.de",
+  name: "BookAndBuy",
+  domain: "https://www.bookandbuy.de",
   tagline: "Täglich geprüfte Produktdaten – für Menschen und KI-Assistenten",
   description:
-    "Kauffakten ist eine täglich automatisch aktualisierte Produktdatenbank. Alle Preise und Spezifikationen mit Prüfdatum, maschinenlesbar als JSON und für Menschen als Vergleich.",
+    "BookAndBuy ist eine täglich automatisch aktualisierte Produktdatenbank. Alle Preise und Spezifikationen mit Prüfdatum, maschinenlesbar als JSON und für Menschen als Vergleich.",
   owner: {
     name: "Marco Mursteiner",
     street: "Palmengasse 21",
     zip: "9020",
     city: "Klagenfurt",
     country: "Österreich",
-    email: "info@kauffakten.de",
+    email: "info@bookandbuy.de",
   },
 } as const;
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kauffakten Admin</title>
+<title>BookAndBuy Admin</title>
 <style>
   :root { --brand:#1a73e8; --brand-d:#1557b0; --bg:#f6f8fa; --border:#e2e8f0; }
   * { box-sizing:border-box; }
@@ -43,9 +43,11 @@
 </head>
 <body>
 <header>
-  <h1>Kauffakten Admin</h1>
+  <h1>BookAndBuy Admin</h1>
   <span class="status" id="llm-status"></span>
   <span class="status" id="disc-status" style="margin-left:auto"></span>
+  <span class="status" id="pub-status"></span>
+  <button id="btn-publish">Site neu bauen</button>
 </header>
 <main>
   <div class="cols">
@@ -90,7 +92,8 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const api = async (path, opts) => {
-  const res = await fetch(path, opts && {
+  // relative Pfade, damit die UI auch hinter /admin/ (Reverse-Proxy) funktioniert
+  const res = await fetch(path.replace(/^\//, ""), opts && {
     method: opts.method || "POST",
     headers: { "Content-Type": "application/json" },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
@@ -111,6 +114,12 @@ async function refreshStatus() {
     ? '<span class="spinner"></span> ' + d.progress
     : (d.progress || "");
   $("btn-discover").disabled = d.running;
+  const p = s.publish;
+  $("pub-status").innerHTML = p.running
+    ? '<span class="spinner"></span> Build läuft …'
+    : p.ok === true ? "Build ✅" : p.ok === false ? "Build ❌" : "";
+  $("pub-status").title = p.output || "";
+  $("btn-publish").disabled = p.running;
   return s;
 }
 
@@ -153,6 +162,11 @@ $("btn-discover").onclick = async () => {
   poll();
 };
 
+$("btn-publish").onclick = async () => {
+  await api("/api/publish", { body: {} });
+  poll();
+};
+
 $("chk-covered").onchange = refreshSuggestions;
 
 document.body.addEventListener("click", async (e) => {
@@ -186,9 +200,10 @@ $("dlg-save").onclick = async () => {
 };
 
 $("dlg-approve").onclick = async () => {
-  if (!confirm("Freigeben? Die Kategorie geht beim nächsten Build live.")) return;
+  if (!confirm("Freigeben? Die Kategorie geht sofort live (automatischer Build).")) return;
   await api(`/api/drafts/${currentSlug}/approve`, { body: {} });
   dlg.close();
+  poll();
   refreshAll();
 };
 
@@ -202,7 +217,7 @@ $("dlg-reject").onclick = async () => {
 let pollTimer = null;
 async function poll() {
   const s = await refreshStatus();
-  if (s.discovery.running) {
+  if (s.discovery.running || s.publish.running) {
     pollTimer = setTimeout(poll, 2000);
   } else {
     clearTimeout(pollTimer);

@@ -1,0 +1,32 @@
+# BookAndBuy.de – Caddy-Konfiguration
+# Liegt auf dem Server unter /etc/caddy/Caddyfile
+
+bookandbuy.de {
+	redir https://www.bookandbuy.de{uri} permanent
+}
+
+www.bookandbuy.de {
+	root * /opt/bookandbuy/dist
+	encode gzip
+
+	# Admin-Bereich: Reverse-Proxy auf den Node-Server, geschützt per Basic-Auth
+	redir /admin /admin/ permanent
+	handle /admin/* {
+		basic_auth {
+			# Hash erzeugen mit: caddy hash-password
+			admin {$ADMIN_PASSWORD_HASH}
+		}
+		uri strip_prefix /admin
+		reverse_proxy 127.0.0.1:5177
+	}
+
+	handle {
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+}

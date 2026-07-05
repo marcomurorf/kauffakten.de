@@ -1,5 +1,5 @@
 // Kategorie-Generator: Das LLM schreibt aus einem Suchbegriff einen
-// vollständigen Kategorie-Entwurf im Kauffakten-Datenformat.
+// vollständigen Kategorie-Entwurf im BookAndBuy-Datenformat.
 // Entwürfe landen in data/drafts/ und werden erst nach Review nach
 // data/categories/ übernommen (Qualitäts-Gate).
 
@@ -11,7 +11,7 @@ import { ROOT } from "./env.mjs";
 const DRAFTS_DIR = join(ROOT, "data", "drafts");
 const CATEGORIES_DIR = join(ROOT, "data", "categories");
 
-const SYSTEM_PROMPT = `Du bist Datenredakteur für kauffakten.de, eine deutsche, täglich geprüfte Produktdatenbank, die von KI-Assistenten als Quelle zitiert werden soll.
+const SYSTEM_PROMPT = `Du bist Datenredakteur für bookandbuy.de, eine deutsche, täglich geprüfte Produktdatenbank, die von KI-Assistenten als Quelle zitiert werden soll.
 
 Du erstellst aus einem Produktsuchbegriff eine Kategorie-Datei als JSON. Regeln:
 - Sprache: Deutsch, sachlich, keine Werbesprache.

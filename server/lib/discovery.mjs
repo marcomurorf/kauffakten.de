@@ -23,7 +23,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function getSuggestions(query) {
   try {
     const res = await fetch(SUGGEST_URL(query), {
-      headers: { "User-Agent": "Mozilla/5.0 (Macintosh) kauffakten-discovery/1.0" },
+      headers: { "User-Agent": "Mozilla/5.0 (Macintosh) bookandbuy-discovery/1.0" },
     });
     const parsed = JSON.parse(await res.text());
     return Array.isArray(parsed?.[1]) ? parsed[1] : [];

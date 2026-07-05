@@ -1,0 +1,16 @@
+[Unit]
+Description=Caddy Webserver
+After=network.target network-online.target
+
+[Service]
+Type=notify
+User=root
+EnvironmentFile=/etc/caddy/caddy.env
+ExecStart=/usr/local/bin/caddy run --environ --config /etc/caddy/Caddyfile
+ExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile --force
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

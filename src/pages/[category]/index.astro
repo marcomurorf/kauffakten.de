@@ -18,7 +18,7 @@ const cheapest = [...category.products].sort(
 ---
 
 <Layout
-  title={`${category.name} im Vergleich (Stand: ${category.updatedAt}) – Kauffakten`}
+  title={`${category.name} im Vergleich (Stand: ${category.updatedAt}) – BookAndBuy`}
   description={`${category.products.length} ${category.shortName} im datenbasierten Vergleich. Alle Preise geprüft am ${category.updatedAt}. Ab ${formatPrice(cheapest.price)}.`}
   jsonLd={categoryJsonLd(category)}
 >

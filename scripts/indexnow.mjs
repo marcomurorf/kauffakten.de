@@ -10,7 +10,7 @@
 
 import { readFile } from "node:fs/promises";
 
-const HOST = "www.kauffakten.de";
+const HOST = "www.bookandbuy.de";
 const KEY = process.env.INDEXNOW_KEY || "REPLACE_WITH_INDEXNOW_KEY";
 
 async function urlsFromSitemap() {

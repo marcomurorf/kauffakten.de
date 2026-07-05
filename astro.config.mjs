@@ -3,7 +3,7 @@ import tailwind from "@astrojs/tailwind";
 import sitemap from "@astrojs/sitemap";
 
 export default defineConfig({
-  site: "https://www.kauffakten.de",
+  site: "https://www.bookandbuy.de",
   integrations: [
     tailwind(),
     sitemap({

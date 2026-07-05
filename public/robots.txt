@@ -1,4 +1,4 @@
-# Kauffakten.de – alle Crawler willkommen, auch KI-Bots.
+# BookAndBuy.de – alle Crawler willkommen, auch KI-Bots.
 User-agent: *
 Allow: /
 
@@ -27,4 +27,4 @@ Allow: /
 User-agent: Bingbot
 Allow: /
 
-Sitemap: https://www.kauffakten.de/sitemap-index.xml
+Sitemap: https://www.bookandbuy.de/sitemap-index.xml
