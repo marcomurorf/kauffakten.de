@@ -31,6 +31,7 @@ const canonicalUrl = canonical ?? new URL(Astro.url.pathname, SITE.domain).href;
     <meta property="og:site_name" content={SITE.name} />
     {ogImage && <meta property="og:image" content={ogImage} />}
     <link rel="sitemap" href="/sitemap-index.xml" />
+    <link rel="alternate" type="application/rss+xml" title={`${SITE.name} – Aktualisierte Produktvergleiche`} href="/rss.xml" />
     {
       jsonLd && (
         <script
@@ -62,6 +63,7 @@ const canonicalUrl = canonical ?? new URL(Astro.url.pathname, SITE.domain).href;
         <p class="mb-4">
           Rohdaten frei nutzbar mit Quellenangabe:
           <a href="/daten/" class="underline hover:text-brand-600">JSON-Feeds &amp; Daten-Lizenz</a>
+          · <a href="/rss.xml" class="underline hover:text-brand-600">RSS-Feed</a>
           · <a href="/llms.txt" class="underline hover:text-brand-600">llms.txt</a>
         </p>
         <nav class="flex gap-4">

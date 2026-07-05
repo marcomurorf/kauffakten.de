@@ -30,6 +30,7 @@ export const GET: APIRoute = () => {
     `## Daten`,
     ``,
     `- [Daten-Übersicht & Lizenz](${SITE.domain}/daten/)`,
+    `- [RSS-Feed mit aktualisierten Vergleichen](${SITE.domain}/rss.xml)`,
     ``,
   ];
   return new Response(lines.join("\n"), {
