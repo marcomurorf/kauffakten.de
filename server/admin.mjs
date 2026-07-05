@@ -158,8 +158,82 @@ async function notifyIndexNow() {
   }
 }
 
+// ------------------------------------------------- Bluesky (Auto-Post)
+// Postet bei Freigabe einer NEUEN Kategorie einen Hinweis mit Link.
+// Credentials in .env: BLUESKY_HANDLE + BLUESKY_APP_PASSWORD.
+async function notifyBluesky(slug) {
+  const handle = process.env.BLUESKY_HANDLE;
+  const password = process.env.BLUESKY_APP_PASSWORD;
+  if (!handle || !password) return;
+  try {
+    const cat = JSON.parse(
+      await readFile(join(CATEGORIES_DIR, `${slug}.json`), "utf8")
+    );
+    const name =
+      (cat.name || slug).replace(/\s*(im\s+)?Vergleich(\s+\d{4})?\s*$/i, "").trim() ||
+      cat.name;
+    const prices = (cat.products || [])
+      .map((p) => p?.price?.value)
+      .filter((v) => typeof v === "number");
+    const min = prices.length ? Math.min(...prices) : null;
+    const url = `${SITE_URL}/${slug}/`;
+    const text =
+      `Neu im Vergleich: ${name} – ${cat.products.length} Modelle` +
+      (min != null ? ` ab ${min.toLocaleString("de-DE")} €` : "") +
+      `, täglich preisgeprüft.\n\n${url}`;
+    const loginRes = await fetch(
+      "https://bsky.social/xrpc/com.atproto.server.createSession",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: handle, password }),
+        signal: AbortSignal.timeout(10_000),
+      }
+    );
+    const session = await loginRes.json();
+    if (!session.accessJwt)
+      throw new Error(session.message || "Login fehlgeschlagen");
+    // Link als Facet, damit er in der App klickbar ist (Byte-Offsets!)
+    const byteEnd = Buffer.byteLength(text);
+    const byteStart = byteEnd - Buffer.byteLength(url);
+    const postRes = await fetch(
+      "https://bsky.social/xrpc/com.atproto.repo.createRecord",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.accessJwt}`,
+        },
+        body: JSON.stringify({
+          repo: session.did,
+          collection: "app.bsky.feed.post",
+          record: {
+            $type: "app.bsky.feed.post",
+            text,
+            createdAt: new Date().toISOString(),
+            langs: ["de"],
+            facets: [
+              {
+                index: { byteStart, byteEnd },
+                features: [
+                  { $type: "app.bsky.richtext.facet#link", uri: url },
+                ],
+              },
+            ],
+          },
+        }),
+        signal: AbortSignal.timeout(10_000),
+      }
+    );
+    if (!postRes.ok) throw new Error(`HTTP ${postRes.status}`);
+    console.log(`Bluesky: Post für /${slug}/ abgesetzt`);
+  } catch (e) {
+    console.error(`Bluesky-Post fehlgeschlagen (${slug}): ${e.message}`);
+  }
+}
+
 // ------------------------------------------------------- Publish (Build)
-async function runPublish() {
+async function runPublish(announceSlug) {
   if (state.publish.running) return;
   state.publish = { running: true, ok: null, output: "baue …", finishedAt: null };
   try {
@@ -176,6 +250,7 @@ async function runPublish() {
     state.publish.ok = true;
     state.publish.output = (stdout + stderr).split("\n").slice(-6).join("\n");
     notifyIndexNow(); // Suchmaschinen (Bing & Co.) über neue Inhalte informieren
+    if (announceSlug) notifyBluesky(announceSlug); // neue Kategorie ankündigen
   } catch (e) {
     state.publish.ok = false;
     state.publish.output = String(e.message).slice(0, 800);
@@ -758,8 +833,10 @@ const server = createServer(async (req, res) => {
             duplicateOf: liveDup.slug,
           });
       }
+      // Nur NEUE Kategorien auf Bluesky ankündigen (Regenerierung = still)
+      const isNew = !(await stat(join(CATEGORIES_DIR, `${slug}.json`)).catch(() => null));
       await approveDraft(slug);
-      runPublish(); // Freigabe stößt automatisch den Live-Build an
+      runPublish(isNew ? slug : undefined); // Freigabe stößt automatisch den Live-Build an
       return json(res, 200, { ok: true, publishing: true });
     }
     if (req.method === "POST" && path.startsWith("/api/drafts/") && path.endsWith("/reject")) {
